@@ -1,0 +1,72 @@
+<div class="dashboard-container">
+  <!-- Première ligne -->
+  <div class="dashboard-row">
+    <!-- État global -->
+    <mat-card class="dashboard-card">
+      <mat-card-header>
+        <mat-card-title>État Global du Déploiement</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="progress-container">
+          <div class="progress-circle">
+            <span class="progress-percentage">{{ overallProgress | number:'1.0-0' }}%</span>
+            <canvas baseChart
+                    [type]="pieChartType"
+                    [datasets]="pieChartData.datasets"
+                    [labels]="pieChartData.labels"
+                    [options]="pieChartOptions">
+            </canvas>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Répartition par type de personnel -->
+    <mat-card class="dashboard-card wide-card">
+      <mat-card-header>
+        <mat-card-title>Répartition par Type de Personnel</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <canvas baseChart
+                [type]="barChartType"
+                [datasets]="personnelChartData.datasets"
+                [labels]="personnelChartData.labels"
+                [options]="personnelChartOptions">
+        </canvas>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Deuxième ligne -->
+  <div class="dashboard-row">
+    <!-- Répartition par région -->
+    <mat-card class="dashboard-card">
+      <mat-card-header>
+        <mat-card-title>Répartition par Région</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <canvas baseChart
+                [type]="barChartType"
+                [datasets]="regionChartData.datasets"
+                [labels]="regionChartData.labels"
+                [options]="barChartOptions">
+        </canvas>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Répartition par type de mobilier -->
+    <mat-card class="dashboard-card">
+      <mat-card-header>
+        <mat-card-title>Répartition par Type de Mobilier</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <canvas baseChart
+                [type]="barChartType"
+                [datasets]="mobilierChartData.datasets"
+                [labels]="mobilierChartData.labels"
+                [options]="barChartOptions">
+        </canvas>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

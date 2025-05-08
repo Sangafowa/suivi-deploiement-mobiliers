@@ -1,0 +1,92 @@
+<mat-card class="entry-card">
+  <mat-card-header>
+    <mat-card-title>Saisie Manuelle</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <form [formGroup]="entryForm" (ngSubmit)="onSubmit()">
+      <div class="form-grid">
+        <!-- Région -->
+        <mat-form-field appearance="outline">
+          <mat-label>Région</mat-label>
+          <mat-select formControlName="region">
+            <mat-option *ngFor="let region of regions" [value]="region">
+              {{ region }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="entryForm.get('region')?.hasError('required')">
+            La région est requise
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Localité -->
+        <mat-form-field appearance="outline">
+          <mat-label>Localité</mat-label>
+          <input matInput formControlName="localite" placeholder="Entrez la localité">
+        </mat-form-field>
+
+        <!-- Type de Personnel -->
+        <mat-form-field appearance="outline">
+          <mat-label>Type de Personnel</mat-label>
+          <mat-select formControlName="typePersonnel">
+            <mat-option *ngFor="let type of typesPersonnel" [value]="type">
+              {{ type }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="entryForm.get('typePersonnel')?.hasError('required')">
+            Le type de personnel est requis
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Nom du Personnel -->
+        <mat-form-field appearance="outline">
+          <mat-label>Nom du Personnel</mat-label>
+          <input matInput formControlName="nomPersonnel" placeholder="Entrez le nom du personnel">
+        </mat-form-field>
+
+        <!-- Date de Livraison (format JJ/MM/AAAA) -->
+        <mat-form-field appearance="outline">
+          <mat-label>Date de Livraison</mat-label>
+          <input matInput [matDatepicker]="picker" formControlName="dateLivraison" placeholder="JJ/MM/AAAA">
+          <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+          <mat-datepicker #picker></mat-datepicker>
+          <mat-error *ngIf="entryForm.get('dateLivraison')?.hasError('required')">
+            La date de livraison est requise
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <!-- Mobiliers -->
+      <div class="mobiliers-section">
+        <h3>Mobiliers Livrés</h3>
+        <div class="mobiliers-grid" formGroupName="mobiliers">
+          <mat-checkbox *ngFor="let type of typesMobilier" [formControlName]="type">
+            {{ type }}
+          </mat-checkbox>
+        </div>
+      </div>
+
+      <!-- Observations -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Observations</mat-label>
+        <textarea matInput formControlName="observation" rows="3" placeholder="Ajouter des observations supplémentaires..."></textarea>
+      </mat-form-field>
+
+      <!-- Message de succès -->
+      <div *ngIf="success" class="success-message">
+        <mat-icon>check_circle</mat-icon>
+        <span>La livraison a été enregistrée avec succès!</span>
+      </div>
+
+      <!-- Bouton de soumission -->
+      <div class="form-actions">
+        <button mat-raised-button
+                color="primary"
+                type="submit"
+                [disabled]="submitting">
+          {{ submitting ? 'Enregistrement...' : 'Enregistrer la livraison' }}
+        </button>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

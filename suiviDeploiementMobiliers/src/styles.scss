@@ -1,0 +1,61 @@
+/* Ajoutez ces styles à votre fichier styles.scss global */
+
+/* Correction de la transparence des calendriers */
+.mat-datepicker-content {
+  background-color: white !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.mat-calendar {
+  background-color: white !important;
+}
+
+.mat-calendar-body-cell-content {
+  color: rgba(0, 0, 0, 0.87) !important;
+}
+
+.mat-calendar-table-header,
+.mat-calendar-body-label {
+  color: rgba(0, 0, 0, 0.87) !important;
+}
+
+.mat-calendar-body-selected {
+  background-color: #3f51b5 !important;
+  color: white !important;
+}
+
+.mat-calendar-body-today:not(.mat-calendar-body-selected) {
+  border-color: #3f51b5 !important;
+}
+
+/* Styles pour assurer que les champs de formulaire ont un fond blanc */
+.mat-mdc-form-field .mdc-text-field,
+.mat-mdc-text-field-wrapper {
+  background-color: white !important;
+}
+
+/* S'assurer que le mat-select a un fond blanc */
+.mat-mdc-select-panel {
+  background-color: white !important;
+}
+
+.mat-mdc-option {
+  background-color: white !important;
+}
+
+/* Correction du style du popover du datepicker */
+.mat-datepicker-toggle .mat-mdc-icon-button {
+  color: rgba(0, 0, 0, 0.54) !important;
+}
+
+/* Style pour les boutons dans le datepicker */
+.mat-calendar-previous-button,
+.mat-calendar-next-button,
+.mat-calendar-period-button {
+  color: rgba(0, 0, 0, 0.54) !important;
+}
+
+/* Amélioration pour le format de date (JJ/MM/AAAA) */
+.mat-date-range-input-inner {
+  text-transform: uppercase; /* Pour le format de date */
+}

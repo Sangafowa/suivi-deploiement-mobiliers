@@ -1,0 +1,207 @@
+// Variables
+$primary-color: #3f51b5;
+$success-color: #2e7d32;
+$success-bg: #e8f5e9;
+$card-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+$header-bg: #f5f7fa;
+$border-color: rgba(0, 0, 0, 0.1);
+$title-color: #3f51b5;
+$orange-color: #fb8c00;
+$green-color: #43a047;
+
+// Mixins
+@mixin responsive($breakpoint) {
+  @if $breakpoint == sm {
+    @media (max-width: 576px) { @content; }
+  } @else if $breakpoint == md {
+    @media (max-width: 768px) { @content; }
+  } @else if $breakpoint == lg {
+    @media (max-width: 992px) { @content; }
+  }
+}
+
+// Styles
+.entry-card {
+  margin-top: 20px;
+  box-shadow: $card-shadow;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+mat-card-header {
+  padding: 16px;
+  background-color: $header-bg;
+  border-bottom: 1px solid $border-color;
+}
+
+mat-card-title {
+  color: $title-color;
+  font-size: 18px;
+  margin: 0;
+}
+
+mat-card-content {
+  padding: 20px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+
+  @include responsive(lg) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include responsive(sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mobiliers-section {
+  margin: 24px 0;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    color: rgba(0, 0, 0, 0.87);
+  }
+}
+
+.mobiliers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+
+  @include responsive(md) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+
+  @include responsive(sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.full-width {
+  width: 100%;
+}
+
+.browse-button {
+  background-color: $orange-color !important; /* orange */
+  color: #fff !important;
+  font-weight: 500;
+}
+
+.mat-error {
+  color: #d32f2f !important;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.process-button {
+  background-color: $green-color !important; /* vert */
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.file-format-info {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #555;
+}
+
+.success-message {
+  display: flex;
+  align-items: center;
+  background-color: $success-bg;
+  color: $success-color;
+  padding: 12px;
+  border-radius: 4px;
+  margin: 16px 0;
+
+  mat-icon {
+    margin-right: 8px;
+  }
+}
+
+.form-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+// Styles pour les champs de formulaire
+::ng-deep {
+  // Correction pour les champs de texte et les sélecteurs
+  .mat-mdc-form-field-subscript-wrapper {
+    padding: 0 !important;
+  }
+
+  .mat-mdc-checkbox {
+    margin: 5px 0;
+  }
+
+  .mat-mdc-form-field-appearance-outline .mat-mdc-form-field-infix {
+    padding: 1em 0 0.75em 0;
+  }
+
+  .mat-mdc-card-title {
+    margin-bottom: 0;
+  }
+
+  // Correction du fond transparent pour les champs de formulaire
+  .mat-mdc-form-field .mdc-text-field {
+    background-color: white !important;
+  }
+
+  // Correction spécifique pour le calendrier
+  .mat-datepicker-content {
+    background-color: white !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+
+    .mat-calendar {
+      background-color: white !important;
+    }
+
+    .mat-calendar-body-cell-content {
+      color: rgba(0, 0, 0, 0.87) !important;
+    }
+
+    .mat-calendar-body-selected {
+      background-color: $primary-color !important;
+      color: white !important;
+    }
+
+    .mat-calendar-body-today:not(.mat-calendar-body-selected) {
+      border-color: $primary-color !important;
+    }
+  }
+
+  // Correction pour les listes déroulantes
+  .mat-select-panel {
+    background-color: white !important;
+  }
+
+  .mat-option {
+    background-color: white !important;
+
+    &:hover:not(.mat-option-disabled) {
+      background-color: rgba(0, 0, 0, 0.04) !important;
+    }
+  }
+}
+
+// Styles spécifiques pour les boutons d'action
+.file-import-card {
+  .browse-button {
+    background-color: $orange-color !important;
+    color: white !important;
+  }
+
+  .process-button {
+    background-color: $green-color !important;
+    color: white !important;
+  }
+}

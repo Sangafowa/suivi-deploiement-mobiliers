@@ -1,0 +1,72 @@
+<mat-card class="data-table-card">
+  <mat-card-header>
+    <mat-card-title>Données Détaillées des Livraisons</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <div class="filter-container">
+      <mat-form-field appearance="outline">
+        <mat-label>Filtrer par région</mat-label>
+        <mat-select [(ngModel)]="selectedRegion" (selectionChange)="onRegionChange()">
+          <mat-option *ngFor="let region of regions" [value]="region">
+            {{ region }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <table mat-table [dataSource]="deliveries" class="delivery-table">
+      <!-- ID Column -->
+      <ng-container matColumnDef="id">
+        <th mat-header-cell *matHeaderCellDef>ID</th>
+        <td mat-cell *matCellDef="let delivery">{{ delivery.id }}</td>
+      </ng-container>
+
+      <!-- Région Column -->
+      <ng-container matColumnDef="region">
+        <th mat-header-cell *matHeaderCellDef>Région</th>
+        <td mat-cell *matCellDef="let delivery">{{ delivery.region }}</td>
+      </ng-container>
+
+      <!-- Localité Column -->
+      <ng-container matColumnDef="localite">
+        <th mat-header-cell *matHeaderCellDef>Localité</th>
+        <td mat-cell *matCellDef="let delivery">{{ delivery.localite }}</td>
+      </ng-container>
+
+      <!-- Type Personnel Column -->
+      <ng-container matColumnDef="typePersonnel">
+        <th mat-header-cell *matHeaderCellDef>Type de Personnel</th>
+        <td mat-cell *matCellDef="let delivery">{{ delivery.typePersonnel }}</td>
+      </ng-container>
+
+      <!-- Nom Personnel Column -->
+      <ng-container matColumnDef="nomPersonnel">
+        <th mat-header-cell *matHeaderCellDef>Nom du Personnel</th>
+        <td mat-cell *matCellDef="let delivery">{{ delivery.nomPersonnel }}</td>
+      </ng-container>
+
+      <!-- Date Livraison Column -->
+      <ng-container matColumnDef="dateLivraison">
+        <th mat-header-cell *matHeaderCellDef>Date de Livraison</th>
+        <td mat-cell *matCellDef="let delivery">{{ delivery.dateLivraison }}</td>
+      </ng-container>
+
+      <!-- Statut Column -->
+      <ng-container matColumnDef="statut">
+        <th mat-header-cell *matHeaderCellDef>Statut</th>
+        <td mat-cell *matCellDef="let delivery" [ngClass]="{'status-delivered': delivery.statut === 'Livré', 'status-pending': delivery.statut === 'En cours'}">
+          {{ delivery.statut }}
+        </td>
+      </ng-container>
+
+      <!-- Table Structure -->
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+
+    <div *ngIf="deliveries.length === 0" class="no-data-message">
+      Aucune donnée disponible pour cette région.
+    </div>
+  </mat-card-content>
+</mat-card>

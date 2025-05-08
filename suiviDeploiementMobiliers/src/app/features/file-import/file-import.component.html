@@ -1,0 +1,79 @@
+<mat-card class="file-import-card">
+  <mat-card-header>
+    <mat-card-title>Importation des fichiers Excel</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <div class="file-drop-area"
+         [class.file-drop-area-active]="files.length > 0"
+         (click)="fileInput.click()">
+      <div class="file-icon">
+        <mat-icon>description</mat-icon>
+      </div>
+      <p class="file-instruction">Cliquez pour sélectionner les fichiers Excel remplis</p>
+      <button mat-raised-button class="browse-button">
+        Parcourir...
+      </button>
+      <input #fileInput type="file"
+             accept=".xlsx,.xls"
+             (change)="handleFileSelect($event)"
+             multiple
+             hidden>
+    </div>
+
+    <div *ngIf="files.length > 0" class="selected-files">
+      <h3 class="files-heading">Fichiers à traiter ({{ files.length }})</h3>
+      <mat-list>
+        <mat-list-item *ngFor="let file of files; let i = index" class="file-item">
+          <mat-icon matListItemIcon>description</mat-icon>
+          <div matListItemTitle>{{ file.name }}</div>
+          <div matListItemLine>{{ (file.size / 1024).toFixed(0) }} Ko</div>
+          <button mat-icon-button color="warn" (click)="removeFile(i)">
+            <mat-icon>close</mat-icon>
+          </button>
+        </mat-list-item>
+      </mat-list>
+    </div>
+
+    <div *ngIf="error" class="error-message">
+      <mat-icon>error</mat-icon>
+      <span>{{ error }}</span>
+    </div>
+
+    <div *ngIf="success" class="success-message">
+      <mat-icon>check_circle</mat-icon>
+      <span>Traitement terminé avec succès ! Les données ont été intégrées au tableau de bord.</span>
+    </div>
+  </mat-card-content>
+
+  <mat-card-actions class="card-actions">
+    <!-- Bouton téléchargement réel -->
+    <a href="assets/modele_livraison.xlsx" download>
+      <button mat-button class="download-button">
+        <mat-icon>download</mat-icon>
+        Télécharger le modèle Excel (.xlsx)
+      </button>
+    </a>
+
+    <!-- Info format accepté -->
+    <p class="file-format-info">
+      Format accepté : <strong>.xlsx</strong>, <strong>.xls</strong> — Taille maximale : 2 Mo
+    </p>
+
+    <div class="action-buttons">
+      <button *ngIf="files.length > 0"
+              mat-button
+              (click)="handleCancel()"
+              [disabled]="processing">
+        Annuler
+      </button>
+
+      <button mat-raised-button
+              class="process-button"
+              (click)="processFiles()"
+              [disabled]="files.length === 0 || processing">
+        {{ processing ? 'Traitement en cours...' : 'Traiter les fichiers' }}
+      </button>
+    </div>
+  </mat-card-actions>
+</mat-card>
