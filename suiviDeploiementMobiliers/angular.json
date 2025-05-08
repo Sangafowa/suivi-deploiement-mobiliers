@@ -33,28 +33,30 @@
             ],
             "scripts": []
           },
-          "configurations": {
-            "production": {
-              "budgets": [
-                {
-                  "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
-                },
-                {
-                  "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
-                }
-              ],
-              "outputHashing": "all"
-            },
-            "development": {
-              "optimization": false,
-              "extractLicenses": false,
-              "sourceMap": true
-            }
+        "configurations": {
+          "production": {
+"budgets": [
+  {
+    "type": "initial",
+    "maximumWarning": "2.5MB",
+    "maximumError": "3MB"
+  },
+  {
+    "type": "anyComponentStyle",
+    "maximumWarning": "10kB",
+    "maximumError": "15kB"
+  }
+]
+,
+            "outputHashing": "all"
           },
+          "development": {
+            "optimization": false,
+            "extractLicenses": false,
+            "sourceMap": true
+          }
+        }
+        ,
           "defaultConfiguration": "production"
         },
         "serve": {
@@ -94,5 +96,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "0da6555d-1b82-4f8a-a1d7-9c2ba403205b"
   }
 }
