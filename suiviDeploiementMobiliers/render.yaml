@@ -2,9 +2,12 @@ services:
   - type: web
     name: suivi-deploiement-mobiliers
     env: static
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && ng build --configuration production
     staticPublishPath: ./dist/suivi-deploiement-mobiliers
-    pullRequestPreviewsEnabled: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: NODE_VERSION
-        value: 18
+        value: 18.19.1

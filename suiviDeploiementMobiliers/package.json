@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "npx serve -s dist/suivi-deploiement-mobiliers",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "postinstall": "npm install serve --no-save"
   },
   "private": true,
   "dependencies": {
@@ -39,5 +40,8 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
