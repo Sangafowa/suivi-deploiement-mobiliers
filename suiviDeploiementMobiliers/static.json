@@ -1,0 +1,7 @@
+{
+    "root": "dist/suivi-deploiement-mobiliers",
+    "clean_urls": true,
+    "routes": {
+      "/**": "index.html"
+    }
+  }

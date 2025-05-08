@@ -2,7 +2,7 @@ services:
   - type: web
     name: suivi-deploiement-mobiliers
     env: static
-    buildCommand: npm install && ng build --configuration production
+    buildCommand: npm install && npm run build
     staticPublishPath: ./dist/suivi-deploiement-mobiliers
     routes:
       - type: rewrite
