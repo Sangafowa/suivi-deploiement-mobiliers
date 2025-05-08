@@ -1,103 +1,42 @@
 {
-  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
-  "version": 1,
-  "newProjectRoot": "projects",
-  "projects": {
-    "suiviDeploiementMobiliers": {
-      "projectType": "application",
-      "schematics": {"@schematics/angular:component": {
-        "style": "scss"
-      }},
-      "root": "",
-      "sourceRoot": "src",
-      "prefix": "app",
-      "architect": {
-        "build": {
-          "builder": "@angular-devkit/build-angular:application",
-          "options": {
-            "outputPath": "dist/suivi-deploiement-mobiliers",
-            "index": "src/index.html",
-            "browser": "src/main.ts",
-            "polyfills": [
-              "zone.js"
-            ],
-            "tsConfig": "tsconfig.app.json",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "public"
-              }
-            ],
-            "styles": [
-              "src/styles.scss"
-            ],
-            "scripts": []
-          },
-        "configurations": {
-          "production": {
-"budgets": [
-  {
-    "type": "initial",
-    "maximumWarning": "2.5MB",
-    "maximumError": "3MB"
+  "name": "suivi-deploiement-mobiliers",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",   
+    "start": "npx serve -s dist/suivi-deploiement-mobiliers",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "postinstall": "npm install serve --no-save"
   },
-  {
-    "type": "anyComponentStyle",
-    "maximumWarning": "10kB",
-    "maximumError": "15kB"
-  }
-]
-,
-            "outputHashing": "all"
-          },
-          "development": {
-            "optimization": false,
-            "extractLicenses": false,
-            "sourceMap": true
-          }
-        }
-        ,
-          "defaultConfiguration": "production"
-        },
-        "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
-          "configurations": {
-            "production": {
-              "buildTarget": "suiviDeploiementMobiliers:build:production"
-            },
-            "development": {
-              "buildTarget": "suiviDeploiementMobiliers:build:development"
-            }
-          },
-          "defaultConfiguration": "development"
-        },
-        "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n"
-        },
-        "test": {
-          "builder": "@angular-devkit/build-angular:karma",
-          "options": {
-            "polyfills": [
-              "zone.js",
-              "zone.js/testing"
-            ],
-            "tsConfig": "tsconfig.spec.json",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "public"
-              }
-            ],
-            "styles": [
-              "src/styles.scss"
-            ],
-            "scripts": []
-          }
-        }
-      }
-    }
+  "private": true,
+  "dependencies": {
+    "@angular/animations": "^17.0.0",
+    "@angular/common": "^17.0.0",
+    "@angular/compiler": "^17.0.0",
+    "@angular/core": "^17.0.0",
+    "@angular/forms": "^17.0.0",
+    "@angular/platform-browser": "^17.0.0",
+    "@angular/platform-browser-dynamic": "^17.0.0",
+    "@angular/router": "^17.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.14.2"
   },
-  "cli": {
-    "analytics": "0da6555d-1b82-4f8a-a1d7-9c2ba403205b"
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^17.0.0",
+    "@angular/cli": "^17.0.0",
+    "@angular/compiler-cli": "^17.0.0",
+    "@types/jasmine": "~5.1.0",
+    "jasmine-core": "~5.1.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "typescript": "~5.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
