@@ -8,9 +8,11 @@ export const TYPES_MOBILIER = [
   "ARMOIRE DE RANGEMENT",
   "BUREAU AVEC RETOUR",
   "CHAISE VISITEUR",
+  "CHAISE PLASTIQUE",
   "CLASSEUR À DOSSIERS",
   "FAUTEUIL AGENT",
-  "TABLE DE REUNION"
+  "TABLE DE REUNION",
+  "MOTO"
 ];
 
 export const TYPES_PERSONNEL = [
@@ -21,4 +23,10 @@ export const TYPES_PERSONNEL = [
   "INFORMATICIEN"
 ];
 
-export const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#83a6ed'];
+export const COLORS =
+  ['#0088FE',
+  '#00C49F',
+    '#FFBB28',
+    '#FF8042',
+    '#8884d8',
+    '#83a6ed'];

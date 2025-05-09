@@ -1,72 +1,96 @@
-<div class="dashboard-container">
-  <!-- Première ligne -->
-  <div class="dashboard-row">
-    <!-- État global -->
-    <mat-card class="dashboard-card">
+<!-- Message d'initialisation -->
+<div *ngIf="showInitializeButton" class="init-container">
+  <mat-card class="init-card">
+    <mat-card-content>
+      <div class="init-content">
+        <h2>Bienvenue sur le Tableau de Bord de Suivi</h2>
+        <p>Aucune donnée n'a été trouvée. Pour commencer, vous pouvez initialiser la base de données avec le stock initial.</p>
+
+        <button mat-raised-button color="primary" (click)="initializeStock()" [disabled]="isLoading">
+          <mat-icon>cloud_download</mat-icon>
+          Initialiser avec le stock
+        </button>
+
+        <p class="init-note">Cette opération chargera les données initiales de stock par région.</p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
+
+<!-- Loading spinner -->
+<div *ngIf="isLoading" class="loading-overlay">
+  <div class="loading-spinner">
+    <mat-spinner diameter="50"></mat-spinner>
+    <span>Chargement en cours...</span>
+  </div>
+</div>
+
+<!-- Tableau de bord normal (visible quand showInitializeButton est false) -->
+<div *ngIf="!showInitializeButton" class="dashboard-container">
+  <div class="chart-row">
+    <mat-card class="chart-card">
       <mat-card-header>
         <mat-card-title>État Global du Déploiement</mat-card-title>
       </mat-card-header>
       <mat-card-content>
-        <div class="progress-container">
-          <div class="progress-circle">
-            <span class="progress-percentage">{{ overallProgress | number:'1.0-0' }}%</span>
-            <canvas baseChart
-                    [type]="pieChartType"
-                    [datasets]="pieChartData.datasets"
-                    [labels]="pieChartData.labels"
-                    [options]="pieChartOptions">
-            </canvas>
+        <div class="pie-chart-container">
+          <canvas baseChart
+                  [type]="pieChartType"
+                  [data]="pieChartData"
+                  [options]="pieChartOptions">
+          </canvas>
+          <div class="progress-percentage">
+            {{ overallProgress | number:'1.0-0' }}%
           </div>
         </div>
       </mat-card-content>
     </mat-card>
 
-    <!-- Répartition par type de personnel -->
-    <mat-card class="dashboard-card wide-card">
+    <mat-card class="chart-card">
       <mat-card-header>
         <mat-card-title>Répartition par Type de Personnel</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <canvas baseChart
-                [type]="barChartType"
-                [datasets]="personnelChartData.datasets"
-                [labels]="personnelChartData.labels"
-                [options]="personnelChartOptions">
+                [data]="personnelChartData"
+                [options]="personnelChartOptions"
+                [type]="barChartType">
         </canvas>
       </mat-card-content>
     </mat-card>
   </div>
 
-  <!-- Deuxième ligne -->
-  <div class="dashboard-row">
-    <!-- Répartition par région -->
-    <mat-card class="dashboard-card">
+  <div class="chart-row">
+    <mat-card class="chart-card">
       <mat-card-header>
         <mat-card-title>Répartition par Région</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <canvas baseChart
-                [type]="barChartType"
-                [datasets]="regionChartData.datasets"
-                [labels]="regionChartData.labels"
-                [options]="barChartOptions">
+                [data]="regionChartData"
+                [options]="barChartOptions"
+                [type]="barChartType">
         </canvas>
       </mat-card-content>
     </mat-card>
 
-    <!-- Répartition par type de mobilier -->
-    <mat-card class="dashboard-card">
+    <mat-card class="chart-card">
       <mat-card-header>
         <mat-card-title>Répartition par Type de Mobilier</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <canvas baseChart
-                [type]="barChartType"
-                [datasets]="mobilierChartData.datasets"
-                [labels]="mobilierChartData.labels"
-                [options]="barChartOptions">
+                [data]="mobilierChartData"
+                [options]="barChartOptions"
+                [type]="barChartType">
         </canvas>
       </mat-card-content>
     </mat-card>
+  </div>
+
+  <div class="actions">
+    <button mat-raised-button color="warn" (click)="resetData()">
+      <mat-icon>delete_forever</mat-icon> Réinitialiser les données
+    </button>
   </div>
 </div>

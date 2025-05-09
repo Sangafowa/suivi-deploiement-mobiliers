@@ -15,7 +15,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { formatDate } from '@angular/common';
 
-// Format de date personnalisé (JJ/MM/AAAA)
 export const MY_DATE_FORMATS = {
   parse: {
     dateInput: 'dd/MM/yyyy',
@@ -50,8 +49,8 @@ export const MY_DATE_FORMATS = {
     MatButtonModule
   ],
   providers: [
-    { provide: MAT_DATE_LOCALE, useValue: 'fr-FR' }, // Locale française
-    { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS } // Format personnalisé
+    { provide: MAT_DATE_LOCALE, useValue: 'fr-FR' },
+    { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS }
   ],
   templateUrl: './manual-entry.component.html',
   styleUrl: './manual-entry.component.scss'
@@ -63,6 +62,7 @@ export class ManualEntryComponent implements OnInit {
   typesMobilier = TYPES_MOBILIER;
   submitting = false;
   success = false;
+  editingId: string | number | null = null;
 
   constructor(
     private fb: FormBuilder,
@@ -74,11 +74,18 @@ export class ManualEntryComponent implements OnInit {
 
   ngOnInit(): void {
     this.initForm();
+
+    const saved = localStorage.getItem('editDelivery');
+    if (saved) {
+      const delivery: Delivery = JSON.parse(saved);
+      this.entryForm.patchValue(delivery);
+      this.editingId = delivery.id;
+      localStorage.removeItem('editDelivery');
+    }
   }
 
   initForm(): void {
-    // Créer les contrôles pour les mobiliers
-    const mobilierControls: {[key: string]: boolean} = {};
+    const mobilierControls: { [key: string]: boolean } = {};
     this.typesMobilier.forEach(type => {
       mobilierControls[type] = false;
     });
@@ -96,7 +103,6 @@ export class ManualEntryComponent implements OnInit {
 
   onSubmit(): void {
     if (this.entryForm.invalid) {
-      // Marquer tous les champs comme touchés pour afficher les erreurs
       Object.keys(this.entryForm.controls).forEach(key => {
         const control = this.entryForm.get(key);
         control?.markAsTouched();
@@ -105,57 +111,42 @@ export class ManualEntryComponent implements OnInit {
     }
 
     this.submitting = true;
-
     const formValue = this.entryForm.value;
-
-    // Utiliser la fonction formatDate pour le format d'affichage (JJ/MM/AAAA)
-    // mais garder le format ISO pour le stockage
     let dateLivraison = '';
     const date = formValue.dateLivraison;
 
     if (date instanceof Date) {
-      // Format pour l'affichage
-      const displayDate = this.formatDate(date);
-      console.log(`Date formatée pour l'affichage: ${displayDate}`);
-
-      // Format pour stockage (YYYY-MM-DD)
       dateLivraison = date.toISOString().split('T')[0];
     } else {
       dateLivraison = formValue.dateLivraison;
     }
 
     const newDelivery: Delivery = {
-      id: 0, // ID sera défini par le service
+      id: this.editingId || 0,
       region: formValue.region,
       localite: formValue.localite || '',
       typePersonnel: formValue.typePersonnel,
       nomPersonnel: formValue.nomPersonnel || '',
-      dateLivraison: dateLivraison, // Format ISO pour le stockage
+      dateLivraison: dateLivraison,
       statut: 'Livré',
       mobiliers: formValue.mobiliers,
       observation: formValue.observation
     };
 
-    // Ajouter la livraison
-    this.dataService.addDelivery(newDelivery);
+    if (this.editingId) {
+      this.dataService.updateDelivery(newDelivery);
+      this.editingId = null;
+    } else {
+      this.dataService.addDelivery(newDelivery);
+    }
 
-    // Réinitialiser le formulaire
     this.entryForm.reset();
     this.initForm();
     this.success = true;
 
-    // Cacher le message de succès après un délai
     setTimeout(() => {
       this.success = false;
       this.submitting = false;
     }, 3000);
-  }
-
-  // Formater la date pour l'affichage (JJ/MM/AAAA)
-  formatDate(date: Date): string {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // +1 car les mois commencent à 0
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
   }
 }

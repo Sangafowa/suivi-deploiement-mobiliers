@@ -1,193 +1,690 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { REGIONS, TYPES_PERSONNEL, TYPES_MOBILIER } from '../constants/app-constants';
-import { Delivery } from '../models/delivery';
-import { MobilierSummary, PersonnelSummary, RegionSummary } from '../models/summary';
+import { BehaviorSubject, from } from 'rxjs';
+import { tap, catchError } from 'rxjs/operators';
+import Dexie from 'dexie';
+import { Delivery, DeliveryStatus } from '../models/delivery';
+import { RegionSummary, PersonnelSummary, MobilierSummary } from '../models/summary';
+import { REGIONS, TYPES_MOBILIER, TYPES_PERSONNEL } from '../constants/app-constants';
+import { InventoryService } from './inventory.service';
 
 // Définition du type pour totalItemCount
 interface TotalItemCount {
   [key: string]: { total: number; delivered: number };
 }
 
+// Interface pour les objets de livraison partiels
+interface PartialDeliveryInput {
+  id?: number | string;
+  region?: string;
+  localite?: string;
+  typePersonnel?: string;
+  nomPersonnel?: string;
+  dateLivraison?: string;
+  statut?: string;
+  mobiliers?: { [key: string]: boolean };
+  observation?: string;
+}
+
+// Définition de la base de données Dexie (IndexedDB)
+class DeliveryDatabase extends Dexie {
+  deliveries!: Dexie.Table<Delivery, number>;
+
+  constructor() {
+    super('DeliveryDatabase');
+    this.version(1).stores({
+      deliveries: '++id, region, typePersonnel, statut'
+    });
+  }
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class DataService {
+  private db: DeliveryDatabase;
+  private readonly STORAGE_KEY = 'deliveryData';
+
   private deliveryData = new BehaviorSubject<Delivery[]>([]);
   private summaryByRegion = new BehaviorSubject<RegionSummary[]>([]);
   private summaryByPersonnel = new BehaviorSubject<PersonnelSummary[]>([]);
   private summaryByMobilier = new BehaviorSubject<MobilierSummary[]>([]);
   private overallProgress = new BehaviorSubject<number>(0);
+  private isLoading = new BehaviorSubject<boolean>(false);
+  private hasInitializedStock = new BehaviorSubject<boolean>(false);
 
-  // Observables pour les composants
   public deliveryData$ = this.deliveryData.asObservable();
   public summaryByRegion$ = this.summaryByRegion.asObservable();
   public summaryByPersonnel$ = this.summaryByPersonnel.asObservable();
   public summaryByMobilier$ = this.summaryByMobilier.asObservable();
   public overallProgress$ = this.overallProgress.asObservable();
+  public isLoading$ = this.isLoading.asObservable();
+  public hasInitializedStock$ = this.hasInitializedStock.asObservable();
 
-  constructor() {
-    this.initializeData();
+  constructor(private inventoryService: InventoryService) {
+    // Initialiser la base de données Dexie
+    this.db = new DeliveryDatabase();
+
+    // Charger les données lors de l'initialisation
+    this.loadFromDatabase();
   }
 
-  // Initialiser les données simulées
-  private initializeData(): void {
-    // Simulation de données de livraison
-    const simulatedDeliveryData: Delivery[] = [];
-    const totalItemCount: TotalItemCount = {
-      'RR-AFOR': {total: 12*5, delivered: 0},
-      'RD-AFOR': {total: 39*5, delivered: 0},
-      'CESF': {total: 7*5, delivered: 0},
-      'CARTOGRAPHE': {total: 1*5, delivered: 0},
-      'INFORMATICIEN': {total: 4*5, delivered: 0}
-    };
+  // Fonction utilitaire pour convertir une chaîne en statut valide
+  private ensureValidStatus(status: string): DeliveryStatus {
+    if (status === 'Livré' || status === 'Non livré' || status === 'En cours') {
+      return status as DeliveryStatus;
+    }
+    return 'Non livré';
+  }
 
-    // Générer des données aléatoires pour la démonstration
-    REGIONS.forEach(region => {
-      const deliveryCount = Math.floor(Math.random() * 5);
-      for (let i = 0; i < deliveryCount; i++) {
-        const personnelType = TYPES_PERSONNEL[Math.floor(Math.random() * TYPES_PERSONNEL.length)];
-        const entry: Delivery = {
-          id: simulatedDeliveryData.length + 1,
-          region,
-          localite: `Localité ${i+1}`,
-          typePersonnel: personnelType,
-          nomPersonnel: `Personnel ${i+1}`,
-          dateLivraison: new Date(2025, 4, Math.floor(Math.random() * 30) + 1).toISOString().split('T')[0],
-          statut: Math.random() > 0.3 ? 'Livré' : 'En cours',
-          mobiliers: {}
-        };
+  // Charger les données depuis IndexedDB
+  private async loadFromDatabase(): Promise<void> {
+    this.isLoading.next(true);
+    try {
+      const deliveries = await this.db.deliveries.toArray();
 
-        // Ajout des mobiliers aléatoires
-        TYPES_MOBILIER.forEach(type => {
-          entry.mobiliers[type] = Math.random() > 0.3;
-          if (entry.mobiliers[type] && entry.statut === 'Livré') {
-            // Vérifier si le type existe dans totalItemCount
-            if (totalItemCount[personnelType]) {
-              totalItemCount[personnelType].delivered++;
-            }
-          }
-        });
+      // Valider et corriger les données
+      const validData = deliveries.map(item => ({
+        ...item,
+        statut: this.ensureValidStatus(item.statut),
+        mobiliers: item.mobiliers || {}
+      }));
 
-        simulatedDeliveryData.push(entry);
+      this.deliveryData.next(validData);
+      this.calculateSummaries(validData);
+      console.log(`Chargé ${validData.length} livraisons depuis IndexedDB.`);
+
+      // Sauvegarder également dans localStorage comme backup
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(validData));
+
+      // Vérifier si le stock initial a déjà été chargé
+      const hasInitialized = localStorage.getItem('hasInitializedStock') === 'true';
+      this.hasInitializedStock.next(hasInitialized);
+
+    } catch (error) {
+      console.error('Erreur lors du chargement depuis IndexedDB:', error);
+      this.loadFromStorage(); // Fallback vers localStorage
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  // Charger les données depuis localStorage (fallback)
+  private loadFromStorage(): void {
+    const savedData = localStorage.getItem(this.STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData) as Delivery[];
+        const validData = parsedData.map(item => ({
+          ...item,
+          statut: this.ensureValidStatus(item.statut),
+          mobiliers: item.mobiliers || {}
+        }));
+
+        this.deliveryData.next(validData);
+        this.calculateSummaries(validData);
+        console.log(`Chargé ${validData.length} livraisons depuis le stockage local.`);
+
+        // Synchroniser avec IndexedDB
+        this.syncToDatabase(validData);
+
+        // Vérifier si le stock initial a déjà été chargé
+        const hasInitialized = localStorage.getItem('hasInitializedStock') === 'true';
+        this.hasInitializedStock.next(hasInitialized);
+
+      } catch (error) {
+        console.error('Erreur lors du chargement des données locales:', error);
+        this.deliveryData.next([]);
+        this.hasInitializedStock.next(false);
       }
-    });
-
-    // Mettre à jour les données
-    this.deliveryData.next(simulatedDeliveryData);
-
-    // Calculer les résumés
-    this.calculateSummaries(simulatedDeliveryData, totalItemCount);
+    } else {
+      console.log('Aucune donnée trouvée dans le stockage local.');
+      this.deliveryData.next([]);
+      this.hasInitializedStock.next(false);
+    }
   }
 
-  // Calculer toutes les statistiques
-  private calculateSummaries(data: Delivery[], totalItemCount?: TotalItemCount): void {
-    // Si totalItemCount n'est pas fourni, calculer à partir des données
-    if (!totalItemCount) {
-      totalItemCount = {} as TotalItemCount;
-      TYPES_PERSONNEL.forEach(type => {
-        totalItemCount![type] = {total: 0, delivered: 0};
-      });
+  // Synchroniser les données avec IndexedDB
+  private async syncToDatabase(data: Delivery[]): Promise<void> {
+    try {
+      // Vider la table existante
+      await this.db.deliveries.clear();
 
-      // Compter les mobiliers pour chaque type de personnel
-      data.forEach(delivery => {
-        const countForType = Object.values(delivery.mobiliers).filter(val => val).length;
-        if (totalItemCount![delivery.typePersonnel]) {
-          totalItemCount![delivery.typePersonnel].total += countForType;
-          if (delivery.statut === 'Livré') {
-            totalItemCount![delivery.typePersonnel].delivered += countForType;
-          }
-        }
-      });
+      // Ajouter les données
+      if (data.length > 0) {
+        await this.db.deliveries.bulkAdd(data);
+      }
+
+      console.log(`${data.length} livraisons synchronisées avec IndexedDB.`);
+    } catch (error) {
+      console.error('Erreur lors de la synchronisation avec IndexedDB:', error);
+    }
+  }
+
+  /**
+   * Initialise les données avec le stock initial
+   * Cette méthode est utilisée pour charger le stock initial depuis l'InventoryService
+   */
+  initializeWithStock(): void {
+    // Vérifier si l'initialisation a déjà été faite
+    if (this.hasInitializedStock.getValue()) {
+      console.log('Le stock a déjà été initialisé. Pas besoin de réinitialiser.');
+      return;
     }
 
-    // Calculer le progrès global
-    const totalItems = Object.values(totalItemCount).reduce((sum: number, count: any) => sum + count.total, 0);
-    const deliveredItems = Object.values(totalItemCount).reduce((sum: number, count: any) => sum + count.delivered, 0);
-    const progress = totalItems > 0 ? (deliveredItems / totalItems) * 100 : 0;
-    this.overallProgress.next(progress);
+    this.isLoading.next(true);
+    console.log('Initialisation avec le stock depuis InventoryService...');
 
-    // Préparer les données récapitulatives par région
-    const byRegion: RegionSummary[] = REGIONS.map(region => {
-      const regionData = data.filter(d => d.region === region);
-      const delivered = regionData.filter(d => d.statut === 'Livré').length;
-      const total = regionData.length;
-      return {
-        name: region,
-        delivered,
-        enCours: total - delivered,
-        total
-      };
-    }).filter(r => r.total > 0);
-    this.summaryByRegion.next(byRegion);
+    // Définir le mapping des noms de mobilier
+    const mobilierMapping: { [key: string]: string } = {
+      'Bureau': 'BUREAU AVEC RETOUR',
+      'Fauteuil': 'FAUTEUIL AGENT',
+      'Chaise Visiteur': 'CHAISE VISITEUR',
+      'Chaise Plastique': 'CHAISE PLASTIQUE',
+      'Armoire': 'ARMOIRE DE RANGEMENT',
+      'Tableau': 'TABLE DE REUNION'
+    };
 
-    // Préparer les données récapitulatives par type de personnel
-    const byPersonnel: PersonnelSummary[] = TYPES_PERSONNEL.map(type => {
-      const itemCount = totalItemCount![type] || { total: 0, delivered: 0 };
-      return {
-        name: type,
-        total: itemCount.total,
-        delivered: itemCount.delivered,
-        percentage: itemCount.total > 0 ?
-          (itemCount.delivered / itemCount.total) * 100 : 0
-      };
+    // Charger le stock depuis l'InventoryService
+    this.inventoryService.getStockByRegion().subscribe({
+      next: (stock) => {
+        console.log('Stock chargé avec succès:', stock);
+
+        if (!stock || Object.keys(stock).length === 0) {
+          console.error('Stock vide ou invalide!');
+          this.isLoading.next(false);
+          return;
+        }
+
+        // Transformer les données de stock selon le mapping
+        const transformedStock = this.inventoryService.transformStockData(stock, mobilierMapping);
+        console.log('Stock transformé:', transformedStock);
+
+        const deliveryData: Delivery[] = [];
+        let itemId = 1;
+
+        // Parcourir chaque région du stock
+        for (const region of Object.keys(transformedStock)) {
+          const mobiliers = transformedStock[region];
+
+          // Parcourir chaque type de mobilier dans la région
+          for (const mobilier of Object.keys(mobiliers)) {
+            const quantity = mobiliers[mobilier];
+
+            for (let i = 0; i < quantity; i++) {
+              // Créer un objet mobiliers avec tous les types à false
+              const mobilierMap: Record<string, boolean> = {};
+              TYPES_MOBILIER.forEach(type => {
+                mobilierMap[type] = type === mobilier;
+              });
+
+              // Assigner un type de personnel de manière répartie
+              const typePersonnelIndex = itemId % TYPES_PERSONNEL.length;
+              const typePersonnel = TYPES_PERSONNEL[typePersonnelIndex];
+
+              // Tous les éléments sont initialement "Non livré"
+              deliveryData.push({
+                id: itemId++,
+                region,
+                localite: `Localité ${i + 1}`,
+                typePersonnel,
+                nomPersonnel: `Agent ${i + 1} - ${typePersonnel}`,
+                dateLivraison: '', // Pas de date de livraison initialement
+                statut: 'Non livré', // Tous les éléments sont "Non livré"
+                mobiliers: mobilierMap,
+                observation: ''
+              });
+            }
+          }
+        }
+
+        console.log(`${deliveryData.length} éléments de livraison créés, tous en statut "Non livré".`);
+
+        // Enregistrer dans la base de données
+        this.syncToDatabase(deliveryData).then(() => {
+          // Mettre à jour les observables
+          this.deliveryData.next(deliveryData);
+          this.calculateSummaries(deliveryData);
+
+          // Sauvegarder dans le localStorage
+          localStorage.setItem(this.STORAGE_KEY, JSON.stringify(deliveryData));
+
+          // Marquer le stock comme initialisé
+          localStorage.setItem('hasInitializedStock', 'true');
+          this.hasInitializedStock.next(true);
+
+          console.log('Données de livraison initialisées avec succès.');
+          this.isLoading.next(false);
+        });
+      },
+      error: (error) => {
+        console.error('Erreur lors du chargement du stock:', error);
+        this.isLoading.next(false);
+      }
     });
-    this.summaryByPersonnel.next(byPersonnel);
+  }
 
-    // Préparer les données récapitulatives par type de mobilier
-    const byMobilier: MobilierSummary[] = TYPES_MOBILIER.map(type => {
-      const deliveredCount = data.filter(d =>
-        d.statut === 'Livré' && d.mobiliers[type]
-      ).length;
-      const totalCount = data.filter(d => d.mobiliers[type]).length;
-      return {
-        name: type,
-        delivered: deliveredCount,
-        enCours: totalCount - deliveredCount,
-        total: totalCount
+  /**
+   * Initialise les données avec un tableau vide
+   */
+  async initializeWithEmptyData(): Promise<void> {
+    this.isLoading.next(true);
+    console.log('Initialisation avec un tableau vide...');
+
+    try {
+      // Vider la base de données
+      await this.db.deliveries.clear();
+
+      // Vider le localStorage
+      localStorage.removeItem(this.STORAGE_KEY);
+      localStorage.removeItem('hasInitializedStock');
+
+      // Réinitialiser les observables
+      this.deliveryData.next([]);
+      this.calculateSummaries([]);
+      this.hasInitializedStock.next(false);
+
+      console.log('Données effacées avec succès.');
+    } catch (error) {
+      console.error('Erreur lors de l\'initialisation des données:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  // === Méthodes CRUD ===
+
+  /**
+   * Ajoute une nouvelle livraison
+   */
+  async addDelivery(deliveryInput: PartialDeliveryInput): Promise<void> {
+    this.isLoading.next(true);
+    const current = this.deliveryData.getValue();
+
+    try {
+      // Construire une livraison valide
+      const newDelivery: Omit<Delivery, 'id'> = {
+        region: deliveryInput.region || '',
+        localite: deliveryInput.localite || '',
+        typePersonnel: deliveryInput.typePersonnel || '',
+        nomPersonnel: deliveryInput.nomPersonnel || '',
+        dateLivraison: deliveryInput.dateLivraison || '',
+        statut: this.ensureValidStatus(deliveryInput.statut || 'Livré'),
+        mobiliers: deliveryInput.mobiliers || {},
+        observation: deliveryInput.observation || ''
       };
-    });
-    this.summaryByMobilier.next(byMobilier);
+
+      // Ajouter à la base de données (l'ID sera généré automatiquement)
+      const id = await this.db.deliveries.add(newDelivery as any);
+
+      // Récupérer la livraison complète avec son ID
+      const addedDelivery = await this.db.deliveries.get(id as number);
+
+      if (addedDelivery) {
+        // Mettre à jour les données locales
+        const updated = [...current, addedDelivery];
+        this.deliveryData.next(updated);
+        this.calculateSummaries(updated);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updated));
+
+        console.log(`Livraison ajoutée avec ID ${addedDelivery.id}:`, addedDelivery);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout de la livraison:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
   }
 
-  // Ajouter une nouvelle livraison
-  addDelivery(delivery: Delivery): void {
-    const currentData = this.deliveryData.getValue();
-    const newData = [...currentData, {
-      ...delivery,
-      id: currentData.length + 1
-    }];
+  /**
+   * Met à jour une livraison existante
+   */
+  async updateDelivery(updatedInput: PartialDeliveryInput): Promise<void> {
+    if (!updatedInput.id) {
+      console.error('Tentative de mise à jour d\'une livraison sans ID');
+      return;
+    }
 
-    this.deliveryData.next(newData);
-    this.calculateSummaries(newData);
+    this.isLoading.next(true);
+    const current = this.deliveryData.getValue();
+
+    try {
+      // S'assurer que la livraison existe
+      const existing = current.find(d => d.id === updatedInput.id);
+      if (!existing) {
+        console.error(`Tentative de mise à jour d'une livraison inexistante avec ID ${updatedInput.id}`);
+        this.isLoading.next(false);
+        return;
+      }
+
+      // Créer une version mise à jour de la livraison
+      const updated: Delivery = {
+        ...existing,
+        region: updatedInput.region || existing.region,
+        localite: updatedInput.localite || existing.localite,
+        typePersonnel: updatedInput.typePersonnel || existing.typePersonnel,
+        nomPersonnel: updatedInput.nomPersonnel || existing.nomPersonnel,
+        dateLivraison: updatedInput.dateLivraison || existing.dateLivraison,
+        statut: this.ensureValidStatus(updatedInput.statut || existing.statut),
+        mobiliers: updatedInput.mobiliers || existing.mobiliers,
+        observation: updatedInput.observation !== undefined ? updatedInput.observation : existing.observation
+      };
+
+      // Mettre à jour dans la base de données
+      const id = Number(updated.id);
+      const changes = {
+        region: updated.region,
+        localite: updated.localite,
+        typePersonnel: updated.typePersonnel,
+        nomPersonnel: updated.nomPersonnel,
+        dateLivraison: updated.dateLivraison,
+        statut: updated.statut,
+        mobiliers: updated.mobiliers,
+        observation: updated.observation
+      };
+
+      await this.db.deliveries.update(id, changes);
+
+      // Mettre à jour les données locales
+      const updatedList = current.map(d => d.id === updated.id ? updated : d);
+      this.deliveryData.next(updatedList);
+      this.calculateSummaries(updatedList);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedList));
+
+      console.log(`Livraison mise à jour avec ID ${updated.id}:`, updated);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la livraison:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
   }
 
-  // Ajouter plusieurs livraisons (pour l'importation)
-  addDeliveries(deliveries: Delivery[]): void {
-    const currentData = this.deliveryData.getValue();
-    const lastId = currentData.length > 0 ?
-      Number(currentData[currentData.length - 1].id) : 0;
+  /**
+   * Supprime une livraison
+   */
+  async deleteDelivery(id: number | string): Promise<void> {
+    this.isLoading.next(true);
+    const current = this.deliveryData.getValue();
 
-    const newDeliveries = deliveries.map((delivery, index) => ({
-      ...delivery,
-      id: lastId + index + 1
-    }));
+    try {
+      // Supprimer de la base de données
+      await this.db.deliveries.delete(Number(id));
 
-    const newData = [...currentData, ...newDeliveries];
-    this.deliveryData.next(newData);
-    this.calculateSummaries(newData);
+      // Mettre à jour les données locales
+      const updated = current.filter(d => d.id !== id);
+      this.deliveryData.next(updated);
+      this.calculateSummaries(updated);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updated));
+
+      console.log(`Livraison supprimée avec ID ${id}`);
+    } catch (error) {
+      console.error('Erreur lors de la suppression de la livraison:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
   }
 
-  // Obtenir toutes les livraisons
+  /**
+   * Récupère toutes les livraisons
+   */
   getDeliveries(): Delivery[] {
     return this.deliveryData.getValue();
   }
 
-  // Filtrer les livraisons par région
+  /**
+   * Récupère les livraisons filtrées par région
+   */
   getDeliveriesByRegion(region: string): Delivery[] {
-    if (region === 'Toutes') {
-      return this.getDeliveries();
+    if (region === 'Toutes') return this.getDeliveries();
+    return this.getDeliveries().filter(d => d.region === region);
+  }
+
+  /**
+   * Calcule les différents résumés pour les graphiques
+   */
+  private calculateSummaries(data: Delivery[]): void {
+    // Initialiser les compteurs pour chaque type de personnel
+    const totalItemCount: TotalItemCount = {};
+    TYPES_PERSONNEL.forEach(type => totalItemCount[type] = { total: 0, delivered: 0 });
+
+    // Compter les éléments par type de personnel
+    data.forEach(d => {
+      // Compter le nombre de mobiliers sélectionnés
+      const mobilierCount = Object.values(d.mobiliers).filter(v => v).length;
+
+      if (d.typePersonnel && totalItemCount[d.typePersonnel]) {
+        totalItemCount[d.typePersonnel].total += mobilierCount;
+
+        if (d.statut === 'Livré') {
+          totalItemCount[d.typePersonnel].delivered += mobilierCount;
+        }
+      }
+    });
+
+    // Progression globale
+    const total = Object.values(totalItemCount).reduce((sum, c) => sum + c.total, 0);
+    const done = Object.values(totalItemCount).reduce((sum, c) => sum + c.delivered, 0);
+    const progress = total > 0 ? (done / total) * 100 : 0;
+    this.overallProgress.next(progress);
+
+    // Résumé par région
+    const byRegion = REGIONS
+      .filter(r => r !== 'Toutes')
+      .map(r => {
+        const filtered = data.filter(d => d.region === r);
+        const livrées = filtered.filter(d => d.statut === 'Livré').length;
+        return {
+          name: r,
+          total: filtered.length,
+          delivered: livrées,
+          enCours: filtered.length - livrées
+        };
+      }).filter(r => r.total > 0);
+
+    this.summaryByRegion.next(byRegion);
+
+    // Résumé par type de personnel
+    const byPersonnel = TYPES_PERSONNEL.map(type => {
+      const t = totalItemCount[type];
+      return {
+        name: type,
+        total: t.total,
+        delivered: t.delivered,
+        percentage: t.total ? (t.delivered / t.total) * 100 : 0
+      };
+    });
+
+    this.summaryByPersonnel.next(byPersonnel);
+
+    // Résumé par type de mobilier
+    const byMobilier = TYPES_MOBILIER.map(type => {
+      // Compter les éléments qui ont ce type de mobilier
+      const total = data.filter(d => d.mobiliers[type]).length;
+      const done = data.filter(d => d.mobiliers[type] && d.statut === 'Livré').length;
+      return {
+        name: type,
+        total,
+        delivered: done,
+        enCours: total - done
+      };
+    });
+
+    this.summaryByMobilier.next(byMobilier);
+  }
+
+  /**
+   * Ajoute plusieurs livraisons d'un coup
+   */
+  async addDeliveries(deliveriesInput: PartialDeliveryInput[]): Promise<void> {
+    if (deliveriesInput.length === 0) return;
+
+    this.isLoading.next(true);
+    const currentData = this.deliveryData.getValue();
+
+    try {
+      // Préparer les livraisons à ajouter (sans ID, ils seront générés automatiquement)
+      const newDeliveries = deliveriesInput.map(input => ({
+        region: input.region || '',
+        localite: input.localite || '',
+        typePersonnel: input.typePersonnel || '',
+        nomPersonnel: input.nomPersonnel || '',
+        dateLivraison: input.dateLivraison || '',
+        statut: this.ensureValidStatus(input.statut || 'Non livré'),
+        mobiliers: input.mobiliers || {},
+        observation: input.observation || ''
+      }));
+
+      // Ajouter en masse à la base de données
+      const ids = await this.db.deliveries.bulkAdd(newDeliveries as any[], { allKeys: true });
+
+      // Récupérer les livraisons complètes avec leurs IDs
+      const addedDeliveries: Delivery[] = [];
+      for (const id of ids) {
+        const delivery = await this.db.deliveries.get(id as number);
+        if (delivery) {
+          addedDeliveries.push(delivery);
+        }
+      }
+
+      // Mettre à jour les données locales
+      const updated = [...currentData, ...addedDeliveries];
+      this.deliveryData.next(updated);
+      this.calculateSummaries(updated);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updated));
+
+      console.log(`${addedDeliveries.length} livraisons ajoutées en masse.`);
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout en masse de livraisons:', error);
+    } finally {
+      this.isLoading.next(false);
     }
-    return this.getDeliveries().filter(delivery => delivery.region === region);
+  }
+
+  /**
+   * Marque une livraison comme livrée
+   */
+  async markAsDelivered(id: number | string, observation: string = ''): Promise<void> {
+    const current = this.deliveryData.getValue();
+    const delivery = current.find(d => d.id === id);
+
+    if (!delivery) {
+      console.error(`Livraison avec ID ${id} non trouvée`);
+      return;
+    }
+
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    // Créer l'objet mise à jour
+    const updatedDelivery: Delivery = {
+      ...delivery,
+      statut: 'Livré',
+      dateLivraison: dateStr,
+      observation: observation || delivery.observation || 'Livraison effectuée'
+    };
+
+    // Utiliser la méthode de mise à jour existante
+    await this.updateDelivery(updatedDelivery);
+  }
+
+  /**
+   * Efface toutes les données
+   */
+  async clearAllData(): Promise<void> {
+    this.isLoading.next(true);
+
+    try {
+      // Vider la base de données
+      await this.db.deliveries.clear();
+
+      // Vider le localStorage
+      localStorage.removeItem(this.STORAGE_KEY);
+      localStorage.removeItem('hasInitializedStock');
+
+      // Réinitialiser les observables
+      this.deliveryData.next([]);
+      this.calculateSummaries([]);
+      this.hasInitializedStock.next(false);
+
+      console.log('Toutes les données ont été effacées.');
+    } catch (error) {
+      console.error('Erreur lors de l\'effacement des données:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  /**
+   * Exporte les données sous forme de fichier JSON
+   */
+  exportToJson(): void {
+    const data = this.deliveryData.getValue();
+    const jsonContent = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'livraisons_export.json';
+    document.body.appendChild(a);
+    a.click();
+
+    // Nettoyer
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  /**
+   * Importe des données depuis un fichier JSON
+   */
+  async importFromJson(file: File): Promise<boolean> {
+    this.isLoading.next(true);
+
+    return new Promise<boolean>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          const data = JSON.parse(content) as Delivery[];
+
+          // Valider les données
+          const validData = data.map(item => ({
+            ...item,
+            statut: this.ensureValidStatus(item.statut),
+            mobiliers: item.mobiliers || {}
+          }));
+
+          // Nettoyer la base de données
+          await this.db.deliveries.clear();
+
+          // Ajouter les nouvelles données
+          await this.db.deliveries.bulkAdd(validData);
+
+          // Recharger les données
+          await this.loadFromDatabase();
+
+          // Marquer comme initialisé
+          localStorage.setItem('hasInitializedStock', 'true');
+          this.hasInitializedStock.next(true);
+
+          resolve(true);
+        } catch (error) {
+          console.error('Erreur lors de l\'importation du fichier JSON:', error);
+          reject(error);
+        } finally {
+          this.isLoading.next(false);
+        }
+      };
+
+      reader.onerror = (error) => {
+        console.error('Erreur lors de la lecture du fichier:', error);
+        this.isLoading.next(false);
+        reject(error);
+      };
+
+      reader.readAsText(file);
+    });
   }
 }

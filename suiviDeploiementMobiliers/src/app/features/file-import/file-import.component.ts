@@ -72,9 +72,11 @@ export class FileImportComponent {
             nomPersonnel: `Personnel ${i+1}`,
             dateLivraison: new Date(2025, 4, Math.floor(Math.random() * 30) + 1).toISOString().split('T')[0],
             statut: Math.random() > 0.3 ? 'Livré' : 'En cours',
-            mobiliers: {}
+            mobiliers: {},
+            observation: `Importé par lot le ${new Date().toLocaleDateString()}` // Ajout de la propriété manquante
           };
 
+          // Générer aléatoirement des mobiliers
           TYPES_MOBILIER.forEach(type => {
             entry.mobiliers[type] = Math.random() > 0.3;
           });

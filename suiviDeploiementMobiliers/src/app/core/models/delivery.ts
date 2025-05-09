@@ -1,3 +1,5 @@
+export type DeliveryStatus = 'Livré' | 'Non livré' | 'En cours';
+
 export interface Delivery {
   id: number | string;
   region: string;
@@ -5,9 +7,7 @@ export interface Delivery {
   typePersonnel: string;
   nomPersonnel: string;
   dateLivraison: string;
-  statut: 'Livré' | 'En cours';
-  mobiliers: {
-    [key: string]: boolean;
-  };
-  observation?: string;
+  statut: DeliveryStatus;
+  mobiliers: { [key: string]: boolean };
+  observation: string;
 }

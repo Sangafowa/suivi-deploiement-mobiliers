@@ -1,9 +1,32 @@
 <mat-card class="data-table-card">
   <mat-card-header>
     <mat-card-title>Données Détaillées des Livraisons</mat-card-title>
+    <span class="header-spacer"></span>
+
+    <!-- Boutons pour l'export/import et la réinitialisation -->
+    <div class="table-actions">
+      <button mat-stroked-button color="primary" (click)="exportData()" matTooltip="Exporter les données au format JSON">
+        <mat-icon>download</mat-icon> Exporter
+      </button>
+
+      <button mat-stroked-button color="accent" (click)="fileInput.click()" matTooltip="Importer des données depuis un fichier JSON">
+        <mat-icon>upload</mat-icon> Importer
+      </button>
+      <input #fileInput type="file" style="display:none" accept=".json" (change)="importData($event)">
+
+      <button mat-stroked-button color="warn" (click)="clearAllData()" matTooltip="Réinitialiser toutes les données">
+        <mat-icon>delete_forever</mat-icon> Réinitialiser
+      </button>
+    </div>
   </mat-card-header>
 
   <mat-card-content>
+    <!-- Message de succès pour l'importation -->
+    <div *ngIf="importSuccess" class="success-message">
+      <mat-icon>check_circle</mat-icon>
+      <span>Les données ont été importées avec succès.</span>
+    </div>
+
     <div class="filter-container">
       <mat-form-field appearance="outline">
         <mat-label>Filtrer par région</mat-label>
@@ -13,50 +36,70 @@
           </mat-option>
         </mat-select>
       </mat-form-field>
+
+      <!-- Champ de recherche -->
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Rechercher</mat-label>
+        <input matInput (keyup)="applyFilter($event)" placeholder="Rechercher dans toutes les colonnes...">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
     </div>
 
-    <table mat-table [dataSource]="deliveries" class="delivery-table">
+    <table mat-table [dataSource]="dataSource" class="delivery-table" matSort>
       <!-- ID Column -->
       <ng-container matColumnDef="id">
-        <th mat-header-cell *matHeaderCellDef>ID</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>ID</th>
         <td mat-cell *matCellDef="let delivery">{{ delivery.id }}</td>
       </ng-container>
 
       <!-- Région Column -->
       <ng-container matColumnDef="region">
-        <th mat-header-cell *matHeaderCellDef>Région</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Région</th>
         <td mat-cell *matCellDef="let delivery">{{ delivery.region }}</td>
       </ng-container>
 
       <!-- Localité Column -->
       <ng-container matColumnDef="localite">
-        <th mat-header-cell *matHeaderCellDef>Localité</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Localité</th>
         <td mat-cell *matCellDef="let delivery">{{ delivery.localite }}</td>
       </ng-container>
 
       <!-- Type Personnel Column -->
       <ng-container matColumnDef="typePersonnel">
-        <th mat-header-cell *matHeaderCellDef>Type de Personnel</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Type de Personnel</th>
         <td mat-cell *matCellDef="let delivery">{{ delivery.typePersonnel }}</td>
       </ng-container>
 
       <!-- Nom Personnel Column -->
       <ng-container matColumnDef="nomPersonnel">
-        <th mat-header-cell *matHeaderCellDef>Nom du Personnel</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Nom du Personnel</th>
         <td mat-cell *matCellDef="let delivery">{{ delivery.nomPersonnel }}</td>
       </ng-container>
 
       <!-- Date Livraison Column -->
       <ng-container matColumnDef="dateLivraison">
-        <th mat-header-cell *matHeaderCellDef>Date de Livraison</th>
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Date de Livraison</th>
         <td mat-cell *matCellDef="let delivery">{{ delivery.dateLivraison }}</td>
       </ng-container>
 
       <!-- Statut Column -->
       <ng-container matColumnDef="statut">
-        <th mat-header-cell *matHeaderCellDef>Statut</th>
-        <td mat-cell *matCellDef="let delivery" [ngClass]="{'status-delivered': delivery.statut === 'Livré', 'status-pending': delivery.statut === 'En cours'}">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Statut</th>
+        <td mat-cell *matCellDef="let delivery" [ngClass]="{'status-delivered': delivery.statut === 'Livré', 'status-pending': delivery.statut === 'En cours' || delivery.statut === 'Non livré'}">
           {{ delivery.statut }}
+        </td>
+      </ng-container>
+
+      <!-- Actions -->
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let delivery">
+          <button mat-icon-button color="accent" (click)="edit(delivery)" matTooltip="Modifier">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="delete(delivery.id)" matTooltip="Supprimer">
+            <mat-icon>delete</mat-icon>
+          </button>
         </td>
       </ng-container>
 
@@ -65,8 +108,29 @@
       <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
     </table>
 
-    <div *ngIf="deliveries.length === 0" class="no-data-message">
-      Aucune donnée disponible pour cette région.
+    <!-- Message si aucune donnée -->
+    <div *ngIf="dataSource.data.length === 0" class="no-data-message">
+      <mat-icon class="no-data-icon">inventory</mat-icon>
+      <p>Aucune livraison n'a été enregistrée.</p>
+      <p>Utilisez le formulaire de saisie pour ajouter des livraisons ou importez un fichier JSON.</p>
     </div>
+
+    <!-- Pagination (visible seulement s'il y a des données) -->
+    <mat-paginator
+      *ngIf="dataSource.data.length > 0"
+      [pageSizeOptions]="[5, 10, 20, 50]"
+      [pageSize]="10"
+      [length]="totalItems"
+      showFirstLastButtons
+      aria-label="Sélectionner une page">
+    </mat-paginator>
   </mat-card-content>
 </mat-card>
+
+<!-- Indicateur de chargement -->
+<div class="loading-overlay" *ngIf="isLoading">
+  <div class="loading-spinner">
+    <mat-spinner diameter="50"></mat-spinner>
+    <span>Chargement en cours...</span>
+  </div>
+</div>

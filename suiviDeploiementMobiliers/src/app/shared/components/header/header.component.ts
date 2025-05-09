@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import {CommonModule} from '@angular/common';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-header',
@@ -10,5 +10,6 @@ import {CommonModule} from '@angular/common';
 })
 export class HeaderComponent {
   title = 'Suivi du Déploiement des Mobiliers';
-  subtitle = 'Direction des Opérations Techniques - PRESFOR';
+  subtitle = 'DAAF - Moyens Généraux et Patrimoine  - PRESFOR';
+  logoPath = 'assets/logoAfor.png';
 }
