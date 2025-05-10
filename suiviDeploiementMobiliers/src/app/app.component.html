@@ -12,6 +12,14 @@
         </a>
 
         <a mat-tab-link
+           routerLink="/regions"
+           routerLinkActive #regions="routerLinkActive"
+           [active]="regions.isActive">
+          <mat-icon>map</mat-icon>
+          <span class="nav-text">Suivi par Région</span>
+        </a>
+
+        <a mat-tab-link
            routerLink="/import"
            routerLinkActive #importFiles="routerLinkActive"
            [active]="importFiles.isActive">

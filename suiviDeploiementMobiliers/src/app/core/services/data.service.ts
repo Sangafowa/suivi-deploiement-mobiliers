@@ -25,6 +25,24 @@ interface PartialDeliveryInput {
   observation?: string;
 }
 
+/**
+ * Interface pour le résumé des livraisons par région
+ */
+export interface RegionDeliveryStatus {
+  region: string;
+  totalPlanned: number;
+  totalDelivered: number;
+  percentage: number;
+  status: 'Non commencé' | 'En cours' | 'Terminé';
+  detailsByMobilier: {
+    [key: string]: {
+      planned: number;
+      delivered: number;
+      percentage: number;
+    }
+  };
+}
+
 // Définition de la base de données Dexie (IndexedDB)
 class DeliveryDatabase extends Dexie {
   deliveries!: Dexie.Table<Delivery, number>;
@@ -686,5 +704,156 @@ export class DataService {
 
       reader.readAsText(file);
     });
+  }
+
+  /**
+   * Récupère le statut des livraisons par région, en comparant avec le stock initial
+   * @param region Région optionnelle pour filtrer les résultats
+   * @returns Tableau de statuts par région
+   */
+  getRegionDeliveryStatus(region?: string): RegionDeliveryStatus[] {
+    // Obtenir les données de livraison
+    const deliveries = this.getDeliveries();
+    // Résultat à retourner
+    const result: RegionDeliveryStatus[] = [];
+
+    // Définir le mapping des noms de mobilier
+    const mobilierMapping: { [key: string]: string } = {
+      'Bureau': 'BUREAU AVEC RETOUR',
+      'Fauteuil': 'FAUTEUIL AGENT',
+      'Chaise Visiteur': 'CHAISE VISITEUR',
+      'Chaise Plastique': 'CHAISE PLASTIQUE',
+      'Armoire': 'ARMOIRE DE RANGEMENT',
+      'Tableau': 'TABLE DE REUNION'
+    };
+
+    // Charger les données de stock - version synchrone par récupération en mémoire
+    // Dans une implémentation réelle on utiliserait getStockByRegion().pipe(first()).toPromise()
+    this.inventoryService.getStockByRegion().subscribe(stockData => {
+      if (!stockData) return;
+
+      // Transformer les données de stock selon le mapping
+      const transformedStock = this.inventoryService.transformStockData(stockData, mobilierMapping);
+
+      // Pour chaque région dans le stock
+      for (const regionName of Object.keys(transformedStock)) {
+        // Filtrer par région si spécifié
+        if (region && regionName !== region) continue;
+
+        const regionMobiliers = transformedStock[regionName];
+        let totalPlanned = 0;
+        let totalDelivered = 0;
+
+        // Initialiser les détails par type de mobilier
+        const detailsByMobilier: {[key: string]: {planned: number; delivered: number; percentage: number}} = {};
+
+        // Parcourir chaque type de mobilier dans la région
+        for (const mobilierType of Object.keys(regionMobiliers)) {
+          const planned = regionMobiliers[mobilierType];
+          totalPlanned += planned;
+
+          // Initialiser les compteurs pour ce type de mobilier
+          detailsByMobilier[mobilierType] = {
+            planned,
+            delivered: 0,
+            percentage: 0
+          };
+        }
+
+        // Compter les livraisons effectuées pour cette région
+        const regionDeliveries = deliveries.filter(d => d.region === regionName && d.statut === 'Livré');
+
+        // Pour chaque livraison dans cette région
+        for (const delivery of regionDeliveries) {
+          // Pour chaque type de mobilier dans cette livraison
+          for (const mobilierType of Object.keys(delivery.mobiliers)) {
+            if (delivery.mobiliers[mobilierType]) {
+              totalDelivered++;
+
+              // Si ce type de mobilier existe dans les détails, incrémenter le compteur
+              if (detailsByMobilier[mobilierType]) {
+                detailsByMobilier[mobilierType].delivered++;
+              }
+            }
+          }
+        }
+
+        // Calculer les pourcentages
+        for (const mobilierType of Object.keys(detailsByMobilier)) {
+          const detail = detailsByMobilier[mobilierType];
+          detail.percentage = detail.planned > 0 ? Math.round((detail.delivered / detail.planned) * 100) : 0;
+        }
+
+        // Calculer le pourcentage global
+        const percentage = totalPlanned > 0 ? Math.round((totalDelivered / totalPlanned) * 100) : 0;
+
+        // Déterminer le statut
+        let status: 'Non commencé' | 'En cours' | 'Terminé' = 'Non commencé';
+        if (percentage === 100) {
+          status = 'Terminé';
+        } else if (percentage > 0) {
+          status = 'En cours';
+        }
+
+        // Ajouter au résultat
+        result.push({
+          region: regionName,
+          totalPlanned,
+          totalDelivered,
+          percentage,
+          status,
+          detailsByMobilier
+        });
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Exporte un rapport CSV des livraisons pour une région spécifique
+   * @param region Nom de la région
+   */
+  exportRegionReport(region: string): void {
+    const deliveries = this.getDeliveriesByRegion(region);
+
+    if (deliveries.length === 0) {
+      console.warn(`Aucune livraison trouvée pour la région ${region}`);
+      return;
+    }
+
+    // Créer le contenu CSV
+    let csvContent = 'ID,Localité,Type Personnel,Nom Personnel,Date Livraison,Statut,Mobiliers,Observation\n';
+
+    deliveries.forEach(delivery => {
+      // Créer une liste des mobiliers
+      const mobiliers = Object.keys(delivery.mobiliers)
+        .filter(key => delivery.mobiliers[key])
+        .join(', ');
+
+      // Échapper les virgules dans les champs de texte
+      const escapeCsv = (text: string) => `"${text.replace(/"/g, '""')}"`;
+
+      csvContent += [
+        delivery.id,
+        escapeCsv(delivery.localite),
+        escapeCsv(delivery.typePersonnel),
+        escapeCsv(delivery.nomPersonnel),
+        delivery.dateLivraison,
+        delivery.statut,
+        escapeCsv(mobiliers),
+        escapeCsv(delivery.observation)
+      ].join(',') + '\n';
+    });
+
+    // Télécharger le fichier CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `rapport_${region}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 }
