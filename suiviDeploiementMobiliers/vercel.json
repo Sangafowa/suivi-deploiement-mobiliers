@@ -2,10 +2,9 @@
   "builds": [
     {
       "src": "package.json",
-      "use": "@vercel/static-build",
+      "use": "@vercel/node",
       "config": {
-        "buildCommand": "npm run build",
-        "outputDirectory": "dist/suivi-deploiement-mobiliers"
+        "zeroConfig": true
       }
     }
   ],
@@ -28,5 +27,8 @@
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
-  ]
+  ],
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "dist/suivi-deploiement-mobiliers",
+  "framework": "other"
 }
