@@ -1,10 +1,11 @@
 services:
-  - type: web
+  - type: static
     name: suivi-deploiement-mobiliers
     env: static
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist/suivi-deploiement-mobiliers
-    pullRequestPreviewsEnabled: true
-    envVars:
-      - key: NODE_VERSION
-        value: 18
+    publish: dist/browser
+    staticPublishOptions:
+      redirects:
+        - source: "/*"
+          destination: "/index.html"
+          statusCode: 200
