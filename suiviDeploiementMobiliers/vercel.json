@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/browser/index.html" }
   ],
-  "outputDirectory": "dist/suivi-deploiement-mobiliers/browser"
+  "outputDirectory": "dist"
 }
