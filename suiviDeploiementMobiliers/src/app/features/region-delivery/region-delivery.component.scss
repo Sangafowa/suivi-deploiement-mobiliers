@@ -1,11 +1,14 @@
+// Styles pour la carte principale
 .region-delivery-card {
   margin: 20px;
+  padding-bottom: 15px;
 
   mat-card-header {
     margin-bottom: 20px;
   }
 }
 
+// Indicateur de chargement
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -15,12 +18,25 @@
 
   span {
     margin-top: 10px;
-    color: #666;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.6);
   }
 }
 
+// Tableau principal des régions
 .region-table {
   width: 100%;
+  margin-bottom: 20px;
+
+  th.mat-header-cell {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.8);
+    background-color: #f5f5f5;
+  }
+
+  .mat-column-percentage, .mat-column-progress {
+    max-width: 200px;
+  }
 
   .mat-mdc-row {
     &:hover {
@@ -28,186 +44,89 @@
     }
 
     &.expanded-row {
-      background-color: #f0f0f0;
+      background-color: rgba(63, 81, 181, 0.05);
     }
   }
 }
 
+// Conteneur des détails de région
 .details-container {
-  background-color: #f9f9f9;
+  margin: 20px 0;
   padding: 15px;
-  margin: 10px 0;
+  background-color: #f9f9f9;
   border-radius: 4px;
+  border-left: 4px solid #3f51b5;
 
   h3 {
-    margin-bottom: 15px;
-    color: #333;
+    margin-top: 0;
+    color: #3f51b5;
   }
 }
 
+// Tableau des détails
 .details-table {
   width: 100%;
+  margin-top: 15px;
   margin-bottom: 15px;
+
+  th.mat-header-cell {
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .mat-row:nth-child(even) {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
 }
 
+// Conteneur de la barre de progression
 .progress-container {
   display: flex;
   align-items: center;
 
   mat-progress-bar {
-    flex: 1;
+    flex-grow: 1;
     margin-right: 10px;
   }
 
   .progress-value {
-    min-width: 40px;
+    min-width: 45px;
     text-align: right;
+    font-weight: 500;
   }
 }
 
+// Styles pour les différents statuts
 .status-completed {
-  color: #4caf50;
+  color: #388e3c;
   font-weight: 500;
 }
 
 .status-in-progress {
-  color: #ff9800;
+  color: #f57c00;
   font-weight: 500;
 }
 
 .status-not-started {
-  color: #f44336;
-  font-weight: 500;
+  color: #d32f2f;
 }
 
+// Message quand il n'y a pas de données
 .no-data-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 30px;
-
-  .no-data-icon {
-    font-size: 48px;
-    height: 48px;
-    width: 48px;
-    color: #ccc;
-    margin-bottom: 15px;
-  }
-
-  p {
-    color: #666;
-    text-align: center;
-  }
-}
-
-/* Ajustement pour les petits écrans */
-@media (max-width: 768px) {
-  .region-table {
-    .mat-mdc-cell {
-      font-size: 12px;
-    }
-  }
-
-  .progress-container {
-    .progress-value {
-      min-width: 30px;
-      font-size: 12px;
-    }
-  }
-}.region-delivery-card {
-   margin: 20px;
-
-   mat-card-header {
-     margin-bottom: 20px;
-   }
- }
-
-.loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 30px;
-
-  span {
-    margin-top: 10px;
-    color: #666;
-  }
-}
-
-.region-table {
-  width: 100%;
-
-  .mat-mdc-row {
-    &:hover {
-      background-color: #f5f5f5;
-    }
-
-    &.expanded-row {
-      background-color: #f0f0f0;
-    }
-  }
-}
-
-.details-container {
-  background-color: #f9f9f9;
-  padding: 15px;
-  margin: 10px 0;
-  border-radius: 4px;
-
-  h3 {
-    margin-bottom: 15px;
-    color: #333;
-  }
-}
-
-.details-table {
-  width: 100%;
-  margin-bottom: 15px;
-}
-
-.progress-container {
-  display: flex;
-  align-items: center;
-
-  mat-progress-bar {
-    flex: 1;
-    margin-right: 10px;
-  }
-
-  .progress-value {
-    min-width: 40px;
-    text-align: right;
-  }
-}
-
-.status-completed {
-  color: #4caf50;
-  font-weight: 500;
-}
-
-.status-in-progress {
-  color: #ff9800;
-  font-weight: 500;
-}
-
-.status-not-started {
-  color: #f44336;
-  font-weight: 500;
-}
-
-.no-data-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 30px;
+  padding: 40px 20px;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.6);
 
   .no-data-icon {
     font-size: 48px;
     height: 48px;
     width: 48px;
-    color: #ccc;
     margin-bottom: 15px;
+    color: rgba(0, 0, 0, 0.4);
   }
 
   p {
@@ -216,7 +135,18 @@
   }
 }
 
-/* Ajustement pour les petits écrans */
+// Styles pour les boutons d'action
+td.mat-cell button.mat-icon-button {
+  opacity: 0.8;
+  transition: opacity 0.2s, transform 0.2s;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+// Ajustement pour les petits écrans
 @media (max-width: 768px) {
   .region-table {
     .mat-mdc-cell {

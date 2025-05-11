@@ -13,11 +13,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTableDataSource } from '@angular/material/table';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 
 import { DataService } from '../../core/services/data.service';
 import { Delivery } from '../../core/models/delivery';
 import { REGIONS } from '../../core/constants/app-constants';
+import {ConfirmationDialogComponent} from '../../shared/components/confirmation-dialog/confirmation-dialog.component';
 
 @Component({
   selector: 'app-data-table',
@@ -35,7 +38,9 @@ import { REGIONS } from '../../core/constants/app-constants';
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatDialogModule,
+    MatSnackBarModule
   ],
   templateUrl: './data-table.component.html',
   styleUrl: './data-table.component.scss'
@@ -48,12 +53,17 @@ export class DataTableComponent implements OnInit, AfterViewInit, OnDestroy {
   totalItems = 0;
   importSuccess = false;
   isLoading = false;
+  confirmedItems: Set<string | number> = new Set();
   private subscription: Subscription = new Subscription();
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
-  constructor(private dataService: DataService) {
+  constructor(
+    private dataService: DataService,
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar
+  ) {
     this.dataSource = new MatTableDataSource<Delivery>([]);
   }
 
@@ -69,6 +79,16 @@ export class DataTableComponent implements OnInit, AfterViewInit, OnDestroy {
     this.subscription.add(
       this.dataService.isLoading$.subscribe(isLoading => {
         this.isLoading = isLoading;
+      })
+    );
+
+    // Mise à jour de la liste des éléments confirmés
+    this.updateConfirmedItems();
+
+    // S'abonner aux changements des confirmations
+    this.subscription.add(
+      this.dataService.regionConfirmations$.subscribe(() => {
+        this.updateConfirmedItems();
       })
     );
 
@@ -135,6 +155,16 @@ export class DataTableComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Réinitialise une livraison à son état initial (Non livré)
+   */
+  async reset(id: string | number): Promise<void> {
+    if (confirm('Êtes-vous sûr de vouloir réinitialiser cette livraison à son état initial (Non livré) ?')) {
+      await this.dataService.resetDelivery(id);
+      // Pas besoin de recharger manuellement, car on écoute les changements
+    }
+  }
+
   edit(delivery: Delivery): void {
     // Stocker l'objet à modifier localement
     localStorage.setItem('editDelivery', JSON.stringify(delivery));
@@ -187,5 +217,87 @@ export class DataTableComponent implements OnInit, AfterViewInit, OnDestroy {
     if (confirm('Êtes-vous sûr de vouloir effacer TOUTES les données ? Cette action est irréversible.')) {
       await this.dataService.clearAllData();
     }
+  }
+
+  // Méthode pour mettre à jour la liste des éléments confirmés
+  private updateConfirmedItems(): void {
+    this.confirmedItems.clear();
+    const regions = this.dataService.getRegionConfirmations();
+
+    regions.forEach(region => {
+      if (region.confirmedItems) {  // Vérification pour éviter des erreurs avec des anciennes données
+        region.confirmedItems.forEach(item => {
+          this.confirmedItems.add(item.deliveryId);
+        });
+      }
+    });
+  }
+
+  // Confirmer une livraison
+  confirmDelivery(delivery: Delivery): void {
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Confirmation de réception',
+        message: `Confirmez-vous la réception de l'équipement ${Object.keys(delivery.mobiliers).find(k => delivery.mobiliers[k])} pour ${delivery.nomPersonnel} dans la région ${delivery.region}?`,
+        showInput: true,
+        inputLabel: 'Votre nom',
+        commentLabel: 'Commentaire (optionnel)',
+        confirmText: 'Confirmer',
+        cancelText: 'Annuler'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result && result.confirmed && result.input) {
+        this.dataService.confirmDeliveryItem(delivery.id, result.input, result.comment || '')
+          .then(() => {
+            this.snackBar.open('Livraison confirmée avec succès!', 'Fermer', {
+              duration: 3000
+            });
+          })
+          .catch(error => {
+            console.error('Erreur lors de la confirmation:', error);
+            this.snackBar.open('Erreur lors de la confirmation', 'Fermer', {
+              duration: 3000
+            });
+          });
+      }
+    });
+  }
+
+  // Annuler la confirmation d'une livraison
+  unconfirmDelivery(delivery: Delivery): void {
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Annulation de confirmation',
+        message: `Êtes-vous sûr de vouloir annuler la confirmation de réception pour cet équipement?`,
+        confirmText: 'Oui, annuler',
+        cancelText: 'Non'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result && result.confirmed) {
+        this.dataService.unconfirmDeliveryItem(delivery.id, delivery.region)
+          .then(() => {
+            this.snackBar.open('Confirmation annulée avec succès!', 'Fermer', {
+              duration: 3000
+            });
+          })
+          .catch(error => {
+            console.error('Erreur lors de l\'annulation:', error);
+            this.snackBar.open('Erreur lors de l\'annulation', 'Fermer', {
+              duration: 3000
+            });
+          });
+      }
+    });
+  }
+
+  // Vérifier si une livraison est confirmée
+  isDeliveryConfirmed(id: string | number): boolean {
+    return this.confirmedItems.has(id);
   }
 }

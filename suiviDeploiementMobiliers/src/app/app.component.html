@@ -20,6 +20,14 @@
         </a>
 
         <a mat-tab-link
+           routerLink="/confirmations"
+           routerLinkActive #confirmations="routerLinkActive"
+           [active]="confirmations.isActive">
+          <mat-icon>check_circle</mat-icon>
+          <span class="nav-text">Confirmations Régionales</span>
+        </a>
+
+        <a mat-tab-link
            routerLink="/import"
            routerLinkActive #importFiles="routerLinkActive"
            [active]="importFiles.isActive">

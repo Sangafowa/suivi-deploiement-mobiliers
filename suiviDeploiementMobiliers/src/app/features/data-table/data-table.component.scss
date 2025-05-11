@@ -105,6 +105,50 @@ mat-card-content {
   font-weight: 500;
 }
 
+.status-confirmed {
+  position: relative;
+  font-weight: 600;
+}
+
+.confirmation-icon {
+  font-size: 14px;
+  height: 14px;
+  width: 14px;
+  color: #4caf50;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.status-delivered.status-confirmed {
+  color: #2e7d32; /* Vert plus foncé pour les éléments confirmés */
+}
+
+td.mat-cell {
+  padding-right: 5px;
+}
+
+/* Ajoutez un style pour les boutons d'action en ligne */
+.mat-column-actions {
+  min-width: 150px; /* Ajuster selon le nombre de boutons */
+  white-space: nowrap;
+}
+
+/* Style pour un badge de confirmation */
+.confirmation-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #4caf50;
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .no-data-message {
   text-align: center;
   padding: 48px 32px;
@@ -183,47 +227,5 @@ mat-paginator {
 
   mat-card-header {
     flex-wrap: wrap;
-  }
-}
-
-// Styles pour corriger les listes déroulantes transparentes
-::ng-deep {
-  // S'assurer que le fond du select est blanc
-  .mat-mdc-select-panel {
-    background-color: white !important;
-  }
-
-  // S'assurer que le champ de formulaire a un fond blanc
-  .mat-mdc-form-field {
-    .mdc-text-field {
-      background-color: white !important;
-    }
-  }
-
-  // Corriger les options du mat-select
-  .mat-mdc-option {
-    background-color: white;
-
-    &:hover:not(.mdc-list-item--disabled) {
-      background-color: rgba(0, 0, 0, 0.04);
-    }
-
-    &.mat-mdc-option-active {
-      background-color: rgba(0, 0, 0, 0.08);
-    }
-  }
-
-  // Assurer que le mat-select a un style cohérent
-  .mat-mdc-select-value {
-    color: rgba(0, 0, 0, 0.87);
-  }
-
-  // Style pour les colonnes triables
-  .mat-sort-header-container {
-    align-items: center;
-
-    .mat-sort-header-arrow {
-      color: rgba(0, 0, 0, 0.54);
-    }
   }
 }

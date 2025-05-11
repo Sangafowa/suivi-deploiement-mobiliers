@@ -85,8 +85,14 @@
       <!-- Statut Column -->
       <ng-container matColumnDef="statut">
         <th mat-header-cell *matHeaderCellDef mat-sort-header>Statut</th>
-        <td mat-cell *matCellDef="let delivery" [ngClass]="{'status-delivered': delivery.statut === 'Livré', 'status-pending': delivery.statut === 'En cours' || delivery.statut === 'Non livré'}">
+        <td mat-cell *matCellDef="let delivery"
+            [ngClass]="{
+              'status-delivered': delivery.statut === 'Livré',
+              'status-pending': delivery.statut === 'En cours' || delivery.statut === 'Non livré',
+              'status-confirmed': isDeliveryConfirmed(delivery.id)
+            }">
           {{ delivery.statut }}
+          <mat-icon *ngIf="isDeliveryConfirmed(delivery.id)" class="confirmation-icon" matTooltip="Réception confirmée">check_circle</mat-icon>
         </td>
       </ng-container>
 
@@ -97,9 +103,21 @@
           <button mat-icon-button color="accent" (click)="edit(delivery)" matTooltip="Modifier">
             <mat-icon>edit</mat-icon>
           </button>
+          <button mat-icon-button color="primary" (click)="reset(delivery.id)" matTooltip="Réinitialiser" *ngIf="delivery.statut !== 'Non livré'">
+            <mat-icon>refresh</mat-icon>
+          </button>
           <button mat-icon-button color="warn" (click)="delete(delivery.id)" matTooltip="Supprimer">
             <mat-icon>delete</mat-icon>
           </button>
+
+          <!-- Bouton de confirmation -->
+          <ng-container *ngIf="delivery.statut === 'Livré'">
+            <button mat-icon-button [color]="isDeliveryConfirmed(delivery.id) ? 'warn' : 'primary'"
+                    (click)="isDeliveryConfirmed(delivery.id) ? unconfirmDelivery(delivery) : confirmDelivery(delivery)"
+                    [matTooltip]="isDeliveryConfirmed(delivery.id) ? 'Annuler la confirmation' : 'Confirmer la réception'">
+              <mat-icon>{{ isDeliveryConfirmed(delivery.id) ? 'remove_circle' : 'verified' }}</mat-icon>
+            </button>
+          </ng-container>
         </td>
       </ng-container>
 

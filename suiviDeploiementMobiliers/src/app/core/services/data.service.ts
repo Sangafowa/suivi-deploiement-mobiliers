@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, from } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import Dexie from 'dexie';
-import { Delivery, DeliveryStatus } from '../models/delivery';
+import {ConfirmedDeliveryItem, Delivery, DeliveryStatus, RegionConfirmation, MobilierConfirmation} from '../models/delivery';
 import { RegionSummary, PersonnelSummary, MobilierSummary } from '../models/summary';
 import { REGIONS, TYPES_MOBILIER, TYPES_PERSONNEL } from '../constants/app-constants';
 import { InventoryService } from './inventory.service';
@@ -46,11 +46,13 @@ export interface RegionDeliveryStatus {
 // Définition de la base de données Dexie (IndexedDB)
 class DeliveryDatabase extends Dexie {
   deliveries!: Dexie.Table<Delivery, number>;
+  regionConfirmations!: Dexie.Table<RegionConfirmation, number>;
 
   constructor() {
     super('DeliveryDatabase');
-    this.version(1).stores({
-      deliveries: '++id, region, typePersonnel, statut'
+    this.version(2).stores({
+      deliveries: '++id, region, typePersonnel, statut',
+      regionConfirmations: '++id, region, statut'
     });
   }
 }
@@ -78,12 +80,32 @@ export class DataService {
   public isLoading$ = this.isLoading.asObservable();
   public hasInitializedStock$ = this.hasInitializedStock.asObservable();
 
+  private regionConfirmations = new BehaviorSubject<RegionConfirmation[]>([]);
+  public regionConfirmations$ = this.regionConfirmations.asObservable();
+
   constructor(private inventoryService: InventoryService) {
     // Initialiser la base de données Dexie
     this.db = new DeliveryDatabase();
 
-    // Charger les données lors de l'initialisation
-    this.loadFromDatabase();
+    // Vérifier et mettre à jour le schéma de la base de données si nécessaire
+    this.updateDatabaseSchema().then(() => {
+      // Charger les données lors de l'initialisation
+      this.loadFromDatabase();
+      this.loadRegionConfirmations();
+    });
+  }
+
+  /**
+   * Met à jour le schéma de la base de données si nécessaire
+   */
+  private async updateDatabaseSchema(): Promise<void> {
+    try {
+      // S'assurer que les tables existent et sont accessibles
+      await this.db.open();
+      console.log('Schéma de la base de données vérifié avec succès');
+    } catch (error) {
+      console.error('Erreur lors de la vérification du schéma de la base de données:', error);
+    }
   }
 
   // Fonction utilitaire pour convertir une chaîne en statut valide
@@ -613,6 +635,7 @@ export class DataService {
     try {
       // Vider la base de données
       await this.db.deliveries.clear();
+      await this.db.regionConfirmations.clear();  // Vider aussi les confirmations régionales
 
       // Vider le localStorage
       localStorage.removeItem(this.STORAGE_KEY);
@@ -620,6 +643,7 @@ export class DataService {
 
       // Réinitialiser les observables
       this.deliveryData.next([]);
+      this.regionConfirmations.next([]);
       this.calculateSummaries([]);
       this.hasInitializedStock.next(false);
 
@@ -778,6 +802,22 @@ export class DataService {
           }
         }
 
+        // Vérifier si des confirmations par mobilier existent
+        const regionConfirmation = this.getRegionConfirmation(regionName);
+        if (regionConfirmation && regionConfirmation.mobilierConfirmations) {
+          // Pour chaque type de mobilier avec confirmation
+          regionConfirmation.mobilierConfirmations.forEach(mobilierConfirmation => {
+            const mobilierType = mobilierConfirmation.mobilierType;
+            if (detailsByMobilier[mobilierType]) {
+              // Remplacer le nombre de livraisons par le nombre de confirmations
+              detailsByMobilier[mobilierType].delivered = mobilierConfirmation.confirmedCount;
+            }
+          });
+
+          // Recalculer le total delivré
+          totalDelivered = Object.values(detailsByMobilier).reduce((sum, detail) => sum + detail.delivered, 0);
+        }
+
         // Calculer les pourcentages
         for (const mobilierType of Object.keys(detailsByMobilier)) {
           const detail = detailsByMobilier[mobilierType];
@@ -855,5 +895,485 @@ export class DataService {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  /**
+   * Réinitialise une livraison à son état initial (statut "Non livré")
+   * @param id ID de la livraison à réinitialiser
+   */
+  async resetDelivery(id: number | string): Promise<void> {
+    this.isLoading.next(true);
+
+    try {
+      const current = this.deliveryData.getValue();
+      const delivery = current.find(d => d.id === id);
+
+      if (!delivery) {
+        console.error(`Livraison avec ID ${id} non trouvée`);
+        this.isLoading.next(false);
+        return;
+      }
+
+      // Extraire l'ID numérique pour construire les valeurs par défaut
+      const numericId = typeof delivery.id === 'string' ? parseInt(delivery.id) : delivery.id;
+
+      // Utiliser la date du 01/01/1900 au format ISO (YYYY-MM-DD)
+      const defaultDate = '1900-01-01';
+
+      // Créer un objet partiel de type PartialDeliveryInput
+      const resetInput: PartialDeliveryInput = {
+        id: delivery.id,
+        statut: 'Non livré',
+        dateLivraison: defaultDate, // Utiliser 01/01/1900 comme date par défaut
+        nomPersonnel: `Agent ${numericId} - ${delivery.typePersonnel}`,
+        localite: `Localité ${numericId}`,
+        observation: ''
+      };
+
+      console.log('Réinitialisation de la livraison - données partielles:', resetInput);
+
+      // Utiliser la méthode de mise à jour existante
+      await this.updateDelivery(resetInput);
+
+      console.log(`Livraison réinitialisée avec succès (ID: ${id})`);
+    } catch (error) {
+      console.error('Erreur lors de la réinitialisation de la livraison:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  /**
+   * Charge les confirmations de région depuis la base de données
+   */
+  private async loadRegionConfirmations(): Promise<void> {
+    try {
+      const confirmations = await this.db.regionConfirmations.toArray();
+      this.regionConfirmations.next(confirmations);
+      console.log(`Chargé ${confirmations.length} confirmations régionales depuis la base de données.`);
+    } catch (error) {
+      console.error('Erreur lors du chargement des confirmations régionales:', error);
+      this.regionConfirmations.next([]);
+    }
+  }
+
+  /**
+   * Vérifie si une région a été confirmée
+   * @param region Nom de la région
+   * @returns true si la région a été confirmée, false sinon
+   */
+  isRegionConfirmed(region: string): boolean {
+    const confirmations = this.regionConfirmations.getValue();
+    const regionConfirmation = confirmations.find(c => c.region === region);
+    return regionConfirmation?.statut === 'Confirmé';
+  }
+
+  /**
+   * Récupère toutes les confirmations régionales
+   * @returns Liste des confirmations régionales
+   */
+  getRegionConfirmations(): RegionConfirmation[] {
+    return this.regionConfirmations.getValue();
+  }
+
+  /**
+   * Récupère la confirmation pour une région spécifique
+   * @param region Nom de la région
+   * @returns La confirmation pour la région spécifiée, ou undefined si non trouvée
+   */
+  getRegionConfirmation(region: string): RegionConfirmation | undefined {
+    return this.regionConfirmations.getValue().find(c => c.region === region);
+  }
+
+  /**
+   * Crée ou met à jour une confirmation régionale
+   * @param confirmation Données de confirmation
+   */
+  async updateRegionConfirmation(confirmation: RegionConfirmation): Promise<void> {
+    this.isLoading.next(true);
+
+    try {
+      const current = this.regionConfirmations.getValue();
+      const existing = current.find(c => c.region === confirmation.region);
+
+      if (existing) {
+        // Mise à jour d'une confirmation existante
+        const id = Number(existing.id);
+
+        // Créer une copie de la confirmation avec l'ID existant
+        const updatedConfirmation = {
+          ...confirmation,
+          id: existing.id
+        };
+
+        // Mettre à jour dans la base de données
+        await this.db.regionConfirmations.update(id, updatedConfirmation);
+
+        // Mettre à jour la liste en mémoire
+        const updated = current.map(c => c.id === existing.id ? updatedConfirmation : c);
+        this.regionConfirmations.next(updated);
+
+        console.log(`Confirmation pour la région ${confirmation.region} mise à jour.`);
+      } else {
+        // Création d'une nouvelle confirmation
+        const id = await this.db.regionConfirmations.add(confirmation);
+        const added = { ...confirmation, id };
+
+        this.regionConfirmations.next([...current, added]);
+
+        console.log(`Nouvelle confirmation créée pour la région ${confirmation.region}.`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la confirmation régionale:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  /**
+   * Génère une confirmation régionale à partir des données de livraison
+   * @param region Nom de la région
+   * @param responsable Nom du responsable régional
+   * @param commentaire Commentaire optionnel
+   * @returns La confirmation générée (non enregistrée en base)
+   */
+  generateRegionConfirmation(region: string, responsable: string, commentaire: string = ''): RegionConfirmation {
+    const deliveries = this.getDeliveriesByRegion(region);
+
+    // Initialiser les compteurs
+    const detailsParType: { [type: string]: { total: number; confirmes: number } } = {};
+    TYPES_MOBILIER.forEach(type => {
+      detailsParType[type] = { total: 0, confirmes: 0 };
+    });
+
+    // Compter les équipements par type
+    deliveries.forEach(delivery => {
+      Object.entries(delivery.mobiliers).forEach(([type, isSelected]) => {
+        if (isSelected) {
+          detailsParType[type].total++;
+
+          if (delivery.statut === 'Livré') {
+            detailsParType[type].confirmes++;
+          }
+        }
+      });
+    });
+
+    // Calculer les totaux
+    let totalEquipements = 0;
+    let totalConfirmes = 0;
+
+    Object.values(detailsParType).forEach(count => {
+      totalEquipements += count.total;
+      totalConfirmes += count.confirmes;
+    });
+
+    // Déterminer le statut global
+    let statut: 'Confirmé' | 'Partiel' | 'Non confirmé' = 'Non confirmé';
+
+    if (totalEquipements > 0) {
+      if (totalConfirmes === totalEquipements) {
+        statut = 'Confirmé';
+      } else if (totalConfirmes > 0) {
+        statut = 'Partiel';
+      }
+    }
+
+    // Créer la confirmation
+    return {
+      region,
+      responsable,
+      dateConfirmation: new Date().toISOString().split('T')[0],
+      commentaire,
+      statut,
+      equipementsRecus: {
+        total: totalEquipements,
+        confirmes: totalConfirmes,
+        pourcentage: totalEquipements > 0 ? Math.round((totalConfirmes / totalEquipements) * 100) : 0,
+        detailsParType
+      },
+      confirmedItems: [], // Ajout de ce champ avec un tableau vide par défaut
+      mobilierConfirmations: [] // Ajout du champ pour les confirmations par mobilier
+    };
+  }
+
+  /**
+   * Confirme une livraison spécifique
+   * @param deliveryId ID de la livraison à confirmer
+   * @param responsable Nom du responsable qui confirme
+   * @param comment Commentaire optionnel
+   */
+  async confirmDeliveryItem(deliveryId: number | string, responsable: string, comment: string = ''): Promise<void> {
+    this.isLoading.next(true);
+
+    try {
+      const delivery = this.getDeliveries().find(d => d.id === deliveryId);
+      if (!delivery) {
+        console.error(`Livraison avec ID ${deliveryId} non trouvée`);
+        return;
+      }
+
+      // Vérifier si une confirmation régionale existe déjà pour cette région
+      let regionConfirmation = this.getRegionConfirmation(delivery.region);
+      const today = new Date().toISOString().split('T')[0];
+
+      // Si la confirmation n'existe pas encore, en créer une nouvelle
+      if (!regionConfirmation) {
+        regionConfirmation = this.generateRegionConfirmation(delivery.region, responsable, '');
+      }
+
+      // S'assurer que confirmedItems existe
+      if (!regionConfirmation.confirmedItems) {
+        regionConfirmation.confirmedItems = [];
+      }
+
+      // Vérifier si cet élément a déjà été confirmé
+      const alreadyConfirmed = regionConfirmation.confirmedItems.some(item => item.deliveryId === deliveryId);
+
+      if (!alreadyConfirmed) {
+        // Ajouter l'élément aux éléments confirmés
+        const confirmedItem: ConfirmedDeliveryItem = {
+          deliveryId,
+          confirmedDate: today,
+          confirmedBy: responsable,
+          comment
+        };
+
+        regionConfirmation.confirmedItems.push(confirmedItem);
+
+        // Mettre à jour les statistiques
+        regionConfirmation.equipementsRecus.confirmes++;
+        regionConfirmation.equipementsRecus.pourcentage = Math.round(
+          (regionConfirmation.equipementsRecus.confirmes / regionConfirmation.equipementsRecus.total) * 100
+        );
+
+        // Mettre à jour le statut
+        if (regionConfirmation.equipementsRecus.confirmes === regionConfirmation.equipementsRecus.total) {
+          regionConfirmation.statut = 'Confirmé';
+        } else {
+          regionConfirmation.statut = 'Partiel';
+        }
+
+        // Mettre à jour la date de confirmation
+        regionConfirmation.dateConfirmation = today;
+
+        // Mettre à jour les détails par type
+        const mobilierType = Object.keys(delivery.mobiliers).find(key => delivery.mobiliers[key]) || '';
+        if (mobilierType && regionConfirmation.equipementsRecus.detailsParType[mobilierType]) {
+          regionConfirmation.equipementsRecus.detailsParType[mobilierType].confirmes++;
+        }
+
+        // Sauvegarder la confirmation mise à jour
+        await this.updateRegionConfirmation(regionConfirmation);
+
+        console.log(`Livraison ID ${deliveryId} confirmée avec succès par ${responsable}`);
+      } else {
+        console.log(`Livraison ID ${deliveryId} déjà confirmée, aucune action supplémentaire nécessaire`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la confirmation d\'une livraison:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  /**
+   * Annule la confirmation d'une livraison spécifique
+   * @param deliveryId ID de la livraison dont on annule la confirmation
+   * @param region Région de la livraison
+   */
+  async unconfirmDeliveryItem(deliveryId: number | string, region: string): Promise<void> {
+    this.isLoading.next(true);
+
+    try {
+      const regionConfirmation = this.getRegionConfirmation(region);
+      if (!regionConfirmation) {
+        console.error(`Aucune confirmation trouvée pour la région ${region}`);
+        return;
+      }
+
+      // S'assurer que confirmedItems existe
+      if (!regionConfirmation.confirmedItems) {
+        regionConfirmation.confirmedItems = [];
+        await this.updateRegionConfirmation(regionConfirmation);
+        return;
+      }
+
+      // Chercher l'élément confirmé à supprimer
+      const itemIndex = regionConfirmation.confirmedItems.findIndex(item => item.deliveryId === deliveryId);
+
+      if (itemIndex >= 0) {
+        // Supprimer l'élément des confirmations
+        regionConfirmation.confirmedItems.splice(itemIndex, 1);
+
+        // Mettre à jour les statistiques
+        regionConfirmation.equipementsRecus.confirmes--;
+        regionConfirmation.equipementsRecus.pourcentage = regionConfirmation.equipementsRecus.total > 0
+          ? Math.round((regionConfirmation.equipementsRecus.confirmes / regionConfirmation.equipementsRecus.total) * 100)
+          : 0;
+
+        // Mettre à jour le statut
+        if (regionConfirmation.equipementsRecus.confirmes === 0) {
+          regionConfirmation.statut = 'Non confirmé';
+        } else if (regionConfirmation.equipementsRecus.confirmes < regionConfirmation.equipementsRecus.total) {
+          regionConfirmation.statut = 'Partiel';
+        }
+
+        // Mettre à jour les détails par type
+        const delivery = this.getDeliveries().find(d => d.id === deliveryId);
+        if (delivery) {
+          const mobilierType = Object.keys(delivery.mobiliers).find(key => delivery.mobiliers[key]) || '';
+          if (mobilierType && regionConfirmation.equipementsRecus.detailsParType[mobilierType]) {
+            regionConfirmation.equipementsRecus.detailsParType[mobilierType].confirmes--;
+          }
+        }
+
+        // Sauvegarder la confirmation mise à jour
+        await this.updateRegionConfirmation(regionConfirmation);
+
+        console.log(`Confirmation annulée pour la livraison ID ${deliveryId}`);
+      } else {
+        console.log(`Livraison ID ${deliveryId} n'était pas confirmée, aucune action nécessaire`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'annulation de la confirmation d\'une livraison:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  /**
+   * Vérifie si une livraison spécifique est confirmée
+   * @param deliveryId ID de la livraison à vérifier
+   * @returns true si la livraison est confirmée, false sinon
+   */
+  isDeliveryItemConfirmed(deliveryId: number | string): boolean {
+    const delivery = this.getDeliveries().find(d => d.id === deliveryId);
+    if (!delivery) return false;
+
+    const regionConfirmation = this.getRegionConfirmation(delivery.region);
+    if (!regionConfirmation || !regionConfirmation.confirmedItems) return false;
+
+    return regionConfirmation.confirmedItems.some(item => item.deliveryId === deliveryId);
+  }
+
+  /**
+   * Confirme un type de mobilier spécifique pour une région
+   * @param region Nom de la région
+   * @param mobilierType Type de mobilier
+   * @param confirmedCount Nombre d'équipements confirmés
+   * @param responsable Nom du responsable qui confirme
+   * @param comment Commentaire optionnel
+   */
+  async confirmMobilierType(
+    region: string,
+    mobilierType: string,
+    confirmedCount: number,
+    responsable: string,
+    comment: string = ''
+  ): Promise<void> {
+    this.isLoading.next(true);
+
+    try {
+      // Vérifier si une confirmation régionale existe déjà pour cette région
+      let regionConfirmation = this.getRegionConfirmation(region);
+      const today = new Date().toISOString().split('T')[0];
+
+      // Si la confirmation n'existe pas encore, en créer une nouvelle
+      if (!regionConfirmation) {
+        regionConfirmation = this.generateRegionConfirmation(region, responsable, '');
+      }
+
+      // S'assurer que mobilierConfirmations existe
+      if (!regionConfirmation.mobilierConfirmations) {
+        regionConfirmation.mobilierConfirmations = [];
+      }
+
+      // Créer ou mettre à jour la confirmation du mobilier
+      const existingConfirmation = regionConfirmation.mobilierConfirmations.find(
+        item => item.mobilierType === mobilierType
+      );
+
+      if (existingConfirmation) {
+        // Mettre à jour la confirmation existante
+        existingConfirmation.confirmedCount = confirmedCount;
+        existingConfirmation.confirmedDate = today;
+        existingConfirmation.confirmedBy = responsable;
+        if (comment) existingConfirmation.comment = comment;
+      } else {
+        // Créer une nouvelle confirmation
+        const mobilierConfirmation: MobilierConfirmation = {
+          mobilierType,
+          confirmedCount,
+          confirmedDate: today,
+          confirmedBy: responsable,
+          comment
+        };
+        regionConfirmation.mobilierConfirmations.push(mobilierConfirmation);
+      }
+
+      // Mettre à jour les statistiques de détails par type
+      if (regionConfirmation.equipementsRecus.detailsParType[mobilierType]) {
+        regionConfirmation.equipementsRecus.detailsParType[mobilierType].confirmes = confirmedCount;
+      }
+
+      // Recalculer le total des équipements confirmés
+      let totalConfirmes = 0;
+      Object.values(regionConfirmation.equipementsRecus.detailsParType).forEach(detail => {
+        totalConfirmes += detail.confirmes;
+      });
+
+      // Mettre à jour les totaux
+      regionConfirmation.equipementsRecus.confirmes = totalConfirmes;
+      regionConfirmation.equipementsRecus.pourcentage = regionConfirmation.equipementsRecus.total > 0
+        ? Math.round((totalConfirmes / regionConfirmation.equipementsRecus.total) * 100)
+        : 0;
+
+      // Mettre à jour le statut
+      if (totalConfirmes === 0) {
+        regionConfirmation.statut = 'Non confirmé';
+      } else if (totalConfirmes < regionConfirmation.equipementsRecus.total) {
+        regionConfirmation.statut = 'Partiel';
+      } else {
+        regionConfirmation.statut = 'Confirmé';
+      }
+
+      // Mettre à jour la date de confirmation
+      regionConfirmation.dateConfirmation = today;
+
+      // Mettre à jour le responsable si nécessaire
+      if (responsable) {
+        regionConfirmation.responsable = responsable;
+      }
+
+      // Sauvegarder la confirmation mise à jour
+      await this.updateRegionConfirmation(regionConfirmation);
+
+      console.log(`Confirmation du mobilier ${mobilierType} dans la région ${region} mise à jour avec ${confirmedCount} équipements confirmés.`);
+    } catch (error) {
+      console.error('Erreur lors de la confirmation du mobilier:', error);
+    } finally {
+      this.isLoading.next(false);
+    }
+  }
+
+  /**
+   * Récupère la confirmation pour un type de mobilier spécifique dans une région
+   * @param region Nom de la région
+   * @param mobilierType Type de mobilier
+   * @returns Le nombre d'équipements confirmés, ou 0 si aucune confirmation
+   */
+  getMobilierConfirmationCount(region: string, mobilierType: string): number {
+    const regionConfirmation = this.getRegionConfirmation(region);
+
+    if (!regionConfirmation || !regionConfirmation.mobilierConfirmations) {
+      return 0;
+    }
+
+    const mobilierConfirmation = regionConfirmation.mobilierConfirmations.find(
+      item => item.mobilierType === mobilierType
+    );
+
+    return mobilierConfirmation ? mobilierConfirmation.confirmedCount : 0;
   }
 }
