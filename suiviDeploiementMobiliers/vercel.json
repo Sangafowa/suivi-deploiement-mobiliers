@@ -13,5 +13,6 @@
   "routes": [
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
-  ]
+  ],
+  "outputDirectory": "dist/suivi-deploiement-mobiliers"
 }
